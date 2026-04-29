@@ -42,8 +42,14 @@ jobs:
 
       - name: Rename ufs_* to cece_* and update internal references
         run: |
-          rename 's/ufs_/cece_/' modulefiles/ufs_*
-          find modulefiles/ -type f -exec sed -i 's/ufs_common/cece_common/g' {} +
+          # 1. Rename files using a Bash loop
+          for file in modulefiles/ufs_*; do
+            if [ -e "$file" ]; then
+              mv "$file" "${file/ufs_/cece_}"
+            fi
+          done
+        # 2. Update internal references (Keep your existing sed command)
+        find modulefiles/ -type f -exec sed -i 's/ufs_common/cece_common/g' {} +
 
       - uses: actions/setup-python@v6
         with:
