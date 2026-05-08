@@ -29,7 +29,7 @@ target_include_directories(
 )
 target_include_directories(cdeps_share PRIVATE ${ESMF_F90COMPILEPATHS} ${PIO_Fortran_INCLUDE_DIR})
 
-target_compile_definitions(cdeps_share PUBLIC CPRGNU)
+target_compile_definitions(cdeps_share PUBLIC CPRGNU HAVE_EXECUTE)
 
 install(TARGETS cdeps_share ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 
