@@ -15,7 +15,7 @@ extern "C" {
  * @struct tide_stream_config_t
  * @brief Configuration for a single TIDE data stream.
  */
-typedef struct {
+struct tide_stream_config_t {
     char* name;
     char* mesh_file;
     char* lev_dimname;
@@ -36,16 +36,16 @@ typedef struct {
     char* cf_detection_mode;
     int cf_cache_enabled;
     int cf_log_level;
-} tide_stream_config_t;
+};
 
 /**
  * @struct tide_config_t
  * @brief Top-level configuration containing multiple TIDE streams.
  */
-typedef struct {
+struct tide_config_t {
     tide_stream_config_t* streams;
     int num_streams;
-} tide_config_t;
+};
 
 /**
  * @brief Parses a TIDE YAML configuration file.
@@ -97,7 +97,7 @@ tide_config_t* tide_parse_yaml(const char* filename) {
             sc.dt_limit = s["dt_limit"] ? s["dt_limit"].as<double>() : 1.5;
             sc.year_first = s["year_first"].as<int>();
             sc.year_last = s["year_last"].as<int>();
-            sc.year_align = s["year_align"].as<int>();
+            sc.year_align = s["year_align"] ? s["year_align"].as<int>() : sc.year_first;
             sc.offset = s["offset"] ? s["offset"].as<int>() : 0;
 
             // Parse input files list
