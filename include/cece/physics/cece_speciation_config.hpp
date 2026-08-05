@@ -60,7 +60,7 @@ enum class EmissionClass : int {
  * @param ec The emission class.
  * @return The string name (e.g., "ISOP", "MBO", etc.).
  */
-inline std::string EmissionClassToString(EmissionClass ec) {
+constexpr inline std::string EmissionClassToString(EmissionClass ec) {
     static const char* names[] = {"ISOP", "MBO",  "MT_PINE", "MT_ACYC", "MT_CAMP", "MT_SABI", "MT_AROM", "NO",    "SQT_HR", "SQT_LR",
                                   "MEOH", "ACTO", "ETOH",    "ACID",    "LVOC",    "OXPROD",  "STRESS",  "OTHER", "CO"};
     int idx = static_cast<int>(ec);
