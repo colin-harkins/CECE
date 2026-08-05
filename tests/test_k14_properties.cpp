@@ -1,3 +1,4 @@
+#include <conf/value.hpp>
 /**
  * @file test_k14_properties.cpp
  * @brief Property-based tests for the K14 (Kok et al., 2014) dust emission scheme.
@@ -321,8 +322,8 @@ TEST_F(K14PropertyTest, Property9_NumericalEquivalence) {
             ASSERT_NE(scheme_cpp, nullptr);
             ASSERT_NE(scheme_fort, nullptr);
 
-            scheme_cpp->Initialize(cfg_cpp.options, nullptr);
-            scheme_fort->Initialize(cfg_fort.options, nullptr);
+            scheme_cpp->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_cpp.options)), nullptr);
+            scheme_fort->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_fort.options)), nullptr);
 
             // Create import state with random physically valid values
             CeceImportState import_state;
@@ -388,12 +389,12 @@ TEST_F(K14PropertyTest, Property10_ZeroEmissionInvariant) {
 
         auto scheme_cpp = PhysicsFactory::CreateScheme(cfg_cpp);
         ASSERT_NE(scheme_cpp, nullptr);
-        scheme_cpp->Initialize(cfg_cpp.options, nullptr);
+        scheme_cpp->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_cpp.options)), nullptr);
 
         std::unique_ptr<PhysicsScheme> scheme_fort;
         if (has_fortran) {
             scheme_fort = PhysicsFactory::CreateScheme(cfg_fort);
-            scheme_fort->Initialize(cfg_fort.options, nullptr);
+            scheme_fort->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_fort.options)), nullptr);
         }
 
         CeceImportState import_state;

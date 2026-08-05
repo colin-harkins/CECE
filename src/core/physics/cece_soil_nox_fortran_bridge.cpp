@@ -16,7 +16,7 @@ namespace cece {
 static PhysicsRegistration<SoilNoxFortranScheme> register_scheme("soil_nox_fortran");
 #endif
 
-void SoilNoxFortranScheme::Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
+void SoilNoxFortranScheme::Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
     std::cout << "SoilNoxFortranScheme: Initialized." << "\n";
 }
 

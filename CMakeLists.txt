@@ -359,9 +359,9 @@ target_include_directories(
 target_compile_definitions(cece_core PUBLIC MPICH_SKIP_MPICXX OMPI_SKIP_MPICXX)
 
 if(ESMF_FOUND)
-  target_link_libraries(cece_core PUBLIC Kokkos::kokkos ESMF::ESMF yaml-cpp)
+  target_link_libraries(cece_core PUBLIC Kokkos::kokkos ESMF::ESMF yaml-cpp conf)
 else()
-  target_link_libraries(cece_core PUBLIC Kokkos::kokkos yaml-cpp)
+  target_link_libraries(cece_core PUBLIC Kokkos::kokkos yaml-cpp conf)
 endif()
 
 target_link_libraries(cece_core PUBLIC HELM::LOGS)

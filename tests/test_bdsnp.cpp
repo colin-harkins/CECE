@@ -1,3 +1,4 @@
+#include <conf/value.hpp>
 /**
  * @file test_bdsnp.cpp
  * @brief Property-based tests for the BdsnpScheme soil NO physics module.
@@ -133,7 +134,7 @@ RC_GTEST_PROP(BdsnpProperty, Property12_YL95_SchemeFreezingZeroEmissions, ()) {
     config["soil_no_method"] = "yl95";
 
     BdsnpScheme scheme;
-    scheme.Initialize(config, nullptr);
+    scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme.Run(import_state, export_state);
 
     // Read back results
@@ -197,7 +198,7 @@ RC_GTEST_PROP(BdsnpProperty, Property12_BDSNP_SchemeFreezingZeroEmissions, ()) {
     config["soil_no_method"] = "bdsnp";
 
     BdsnpScheme scheme;
-    scheme.Initialize(config, nullptr);
+    scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme.Run(import_state, export_state);
 
     // Read back results
@@ -267,12 +268,12 @@ RC_GTEST_PROP(BdsnpParityProperty, Property14_YL95_CppFortranParity, ()) {
     config_yl95["soil_no_method"] = "yl95";
 
     BdsnpScheme scheme_cpp;
-    scheme_cpp.Initialize(config_yl95, nullptr);
+    scheme_cpp.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_yl95)), nullptr);
     scheme_cpp.Run(import_cpp, export_cpp);
 
     // ---- Initialize and run Fortran scheme ----
     BdsnpFortranScheme scheme_fort;
-    scheme_fort.Initialize(config_yl95, nullptr);
+    scheme_fort.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_yl95)), nullptr);
     scheme_fort.Run(import_fort, export_fort);
 
     // ---- Compare results ----
@@ -330,12 +331,12 @@ RC_GTEST_PROP(BdsnpParityProperty, Property14_BDSNP_CppFortranParity, ()) {
     config_bdsnp["soil_no_method"] = "bdsnp";
 
     BdsnpScheme scheme_cpp;
-    scheme_cpp.Initialize(config_bdsnp, nullptr);
+    scheme_cpp.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_bdsnp)), nullptr);
     scheme_cpp.Run(import_cpp, export_cpp);
 
     // ---- Initialize and run Fortran scheme (BDSNP mode) ----
     BdsnpFortranScheme scheme_fort;
-    scheme_fort.Initialize(config_bdsnp, nullptr);
+    scheme_fort.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_bdsnp)), nullptr);
     scheme_fort.Run(import_fort, export_fort);
 
     // ---- Compare results ----
@@ -395,11 +396,11 @@ RC_GTEST_PROP(BdsnpParityProperty, Property14_Freezing_CppFortranParity, ()) {
     config["soil_no_method"] = method;
 
     BdsnpScheme scheme_cpp;
-    scheme_cpp.Initialize(config, nullptr);
+    scheme_cpp.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme_cpp.Run(import_cpp, export_cpp);
 
     BdsnpFortranScheme scheme_fort;
-    scheme_fort.Initialize(config, nullptr);
+    scheme_fort.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme_fort.Run(import_fort, export_fort);
 
     auto& dv_cpp = export_cpp.fields["soil_nox_emissions"];
@@ -476,13 +477,13 @@ RC_GTEST_PROP(BdsnpParityProperty, Property12_YL95_ParityWithSoilNoxScheme, ()) 
     config_yl95["soil_no_method"] = "yl95";
 
     BdsnpScheme bdsnp_scheme;
-    bdsnp_scheme.Initialize(config_yl95, nullptr);
+    bdsnp_scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_yl95)), nullptr);
     bdsnp_scheme.Run(import_bdsnp, export_bdsnp);
 
     // ---- Initialize and run SoilNoxScheme ----
     YAML::Node config_soilnox;
     SoilNoxScheme soilnox_scheme;
-    soilnox_scheme.Initialize(config_soilnox, nullptr);
+    soilnox_scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config_soilnox)), nullptr);
     soilnox_scheme.Run(import_soilnox, export_soilnox);
 
     // ---- Compare results ----
@@ -577,7 +578,7 @@ TEST_F(BdsnpSchemeTest, SoilNoMethodConfigParsing_Bdsnp) {
     config["soil_no_method"] = "bdsnp";
 
     BdsnpScheme scheme;
-    EXPECT_NO_THROW(scheme.Initialize(config, nullptr));
+    EXPECT_NO_THROW(scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr));
 
     // Run with warm soil temp — should produce non-zero emissions in BDSNP mode
     scheme.Run(import_state, export_state);
@@ -593,7 +594,7 @@ TEST_F(BdsnpSchemeTest, SoilNoMethodConfigParsing_YL95) {
     config["soil_no_method"] = "yl95";
 
     BdsnpScheme scheme;
-    EXPECT_NO_THROW(scheme.Initialize(config, nullptr));
+    EXPECT_NO_THROW(scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr));
 
     // Run with warm soil temp — should produce non-zero emissions in YL95 mode
     scheme.Run(import_state, export_state);
@@ -609,7 +610,7 @@ TEST_F(BdsnpSchemeTest, SoilNoMethodConfigParsing_DefaultIsBdsnp) {
     YAML::Node config;
 
     BdsnpScheme scheme;
-    EXPECT_NO_THROW(scheme.Initialize(config, nullptr));
+    EXPECT_NO_THROW(scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr));
 
     // Run with warm soil temp — should produce non-zero emissions (default bdsnp mode)
     scheme.Run(import_state, export_state);
@@ -632,7 +633,7 @@ TEST_F(BdsnpSchemeTest, SoilNOWrittenToExportState) {
     config["soil_no_method"] = "yl95";
 
     BdsnpScheme scheme;
-    scheme.Initialize(config, nullptr);
+    scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
 
     // Set warm soil temperature (300 K = 26.85°C) and moderate moisture
     SetFieldValue("soil_temperature", 300.0);
@@ -658,7 +659,7 @@ TEST_F(BdsnpSchemeTest, SoilNOWrittenToExportState_BdsnpMode) {
     config["soil_no_method"] = "bdsnp";
 
     BdsnpScheme scheme;
-    scheme.Initialize(config, nullptr);
+    scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
 
     // Set warm soil temperature and moderate moisture
     SetFieldValue("soil_temperature", 300.0);
@@ -703,7 +704,7 @@ TEST_F(BdsnpSchemeTest, DiagnosticFieldsRegisteredWhenEnabled) {
 
     BdsnpScheme scheme;
     // Initialize with diagnostics enabled — should not throw
-    EXPECT_NO_THROW(scheme.Initialize(config, &diag_manager));
+    EXPECT_NO_THROW(scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), &diag_manager));
 }
 
 }  // namespace cece

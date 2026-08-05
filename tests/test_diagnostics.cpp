@@ -3,6 +3,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <Kokkos_Core.hpp>
+#include <conf/value.hpp>
 #include <cstring>
 #include <fstream>
 
@@ -13,7 +14,7 @@ namespace cece {
 
 class MockPhysicsScheme : public PhysicsScheme {
    public:
-    void Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* diag_manager) override {
+    void Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* diag_manager) override {
         diag_ = diag_manager->RegisterDiagnostic("test_diag", 10, 10, 5);
     }
 
@@ -36,7 +37,7 @@ TEST(DiagnosticsTest, RegistrationAndWriteback) {
     MockPhysicsScheme scheme;
 
     YAML::Node config;
-    scheme.Initialize(config, &diag_manager);
+    scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), &diag_manager);
 
     CeceImportState import_state;
     CeceExportState export_state;

@@ -1,3 +1,4 @@
+#include <conf/conf.hpp>
 #include <cstring>
 #include <fstream>
 /**
@@ -294,28 +295,13 @@ void cece_read_timing_config(const char* config_path, int path_len, char* start_
         // Convert C string to std::string
         std::string yaml_path(config_path, path_len);
 
-        // Parse YAML file
-        YAML::Node root = YAML::LoadFile(yaml_path);
+        // Parse config file
+        conf::Config cfg = conf::Config::from_file(yaml_path);
 
         // Default values
-        std::string start_default = "2020-01-01T00:00:00";
-        std::string end_default = "2020-01-01T06:00:00";
-        int timestep_default = 3600;
-
-        // Read timing configuration
-        if (root["driver"]) {
-            const auto& driver_node = root["driver"];
-
-            if (driver_node["start_time"]) {
-                start_default = driver_node["start_time"].as<std::string>();
-            }
-            if (driver_node["end_time"]) {
-                end_default = driver_node["end_time"].as<std::string>();
-            }
-            if (driver_node["timestep_seconds"]) {
-                timestep_default = driver_node["timestep_seconds"].as<int>();
-            }
-        }
+        std::string start_default = cfg.get_or<std::string>("driver.start_time", "2020-01-01T00:00:00");
+        std::string end_default = cfg.get_or<std::string>("driver.end_time", "2020-01-01T06:00:00");
+        int timestep_default = cfg.get_or("driver.timestep_seconds", 3600);
 
         // Copy strings safely
         strncpy(start_time, start_default.c_str(), max_len - 1);

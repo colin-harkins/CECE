@@ -174,6 +174,16 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
       target_lons_(lon_coords, lon_coords + lon_len),
       target_lats_(lat_coords, lat_coords + lat_len),
       comm_c_(comm_c) {
+    // Configure the CECE logger with this driver's communicator so rank
+    // filtering is correct when running under a non-COMM_WORLD split.
+    {
+        int mpi_init = 0;
+        MPI_Initialized(&mpi_init);
+        if (mpi_init && comm_c_ != MPI_COMM_NULL) {
+            cece::CeceLogger::GetInstance().ConfigureCommunicator(comm_c_);
+        }
+    }
+
     // Parse config once at construction using HELM CONF
     try {
         conf::Config cfg = conf::Config::from_file(config_file_);
@@ -229,8 +239,8 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
                 }
             }
         }
-    } catch (const conf::Conf_Error&) {
-        CECE_LOG_ERROR("[DRIVER] Failed to parse config file '" + config_file_ + "'.");
+    } catch (const conf::Conf_Error& e) {
+        CECE_LOG_ERROR("[DRIVER] Failed to parse config file '" + config_file_ + "': " + e.what());
         throw;
     }
 

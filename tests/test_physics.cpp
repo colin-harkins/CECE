@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
+#include <conf/value.hpp>
 
 #include "cece/cece_physics_factory.hpp"
 #include "cece/cece_state.hpp"
@@ -111,8 +112,8 @@ void TestParity(PhysicsTest* test, const std::string& cpp_name, const std::strin
     }
 
     // Initialize schemes (needed for optimized versions)
-    scheme_cpp->Initialize(cfg_cpp.options, nullptr);
-    scheme_fort->Initialize(cfg_fort.options, nullptr);
+    scheme_cpp->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_cpp.options)), nullptr);
+    scheme_fort->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_fort.options)), nullptr);
 
     // Run C++
     scheme_cpp->Run(test->import_state, test->export_state);
@@ -177,7 +178,7 @@ TEST_F(PhysicsTest, SurfaceEmissionVerticalDistribution) {
         PhysicsSchemeConfig cfg;
         cfg.name = schemes[i];
         auto scheme = PhysicsFactory::CreateScheme(cfg);
-        scheme->Initialize(cfg.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
         SetFieldValue(fields[i], 0.0, false);
         scheme->Run(import_state, export_state);
@@ -196,7 +197,7 @@ TEST_F(PhysicsTest, SeaSaltSensitivity) {
     PhysicsSchemeConfig cfg;
     cfg.name = "sea_salt";
     auto scheme = PhysicsFactory::CreateScheme(cfg);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Test Wind Speed Sensitivity
     SetFieldValue("wind_speed", 5.0);
@@ -230,7 +231,7 @@ TEST_F(PhysicsTest, MeganSensitivity) {
     PhysicsSchemeConfig cfg;
     cfg.name = "megan";
     auto scheme = PhysicsFactory::CreateScheme(cfg);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Test Light Sensitivity
     SetFieldValue("leaf_area_index", 3.0);
@@ -249,7 +250,7 @@ TEST_F(PhysicsTest, SoilNoxSensitivity) {
     PhysicsSchemeConfig cfg;
     cfg.name = "soil_nox";
     auto scheme = PhysicsFactory::CreateScheme(cfg);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Test Moisture Sensitivity (Poisson-like)
     SetFieldValue("soil_moisture", 0.01);
@@ -273,7 +274,7 @@ TEST_F(PhysicsTest, NativeExampleMultipleInputs) {
     {
         ClearExports();
         auto scheme = PhysicsFactory::CreateScheme(cfg);
-        scheme->Initialize(cfg.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
         SetFieldValue("nox", 0.0, false);
         SetFieldValue("base_anthropogenic_nox", 1.0);
@@ -292,7 +293,7 @@ TEST_F(PhysicsTest, NativeExampleMultipleInputs) {
         cfg_mapped.options = YAML::Load("input_mapping: {multiplier_input: custom_import}");
 
         auto scheme = PhysicsFactory::CreateScheme(cfg_mapped);
-        scheme->Initialize(cfg_mapped.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_mapped.options)), nullptr);
 
         import_state.fields["custom_import"] = create_dv("custom_import", 5.0);
         SetFieldValue("base_anthropogenic_nox", 1.0);
@@ -311,7 +312,7 @@ TEST_F(PhysicsTest, NativeExampleMultipleInputs) {
         cfg_chained.options = YAML::Load("input_mapping: {multiplier_input: secondary_input}");
 
         auto scheme = PhysicsFactory::CreateScheme(cfg_chained);
-        scheme->Initialize(cfg_chained.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_chained.options)), nullptr);
 
         SetFieldValue("nox", 0.0, false);
         SetFieldValue("secondary_input", 10.0, false);
@@ -331,7 +332,7 @@ TEST_F(PhysicsTest, NativeExampleMultipleInputs) {
         cfg_out_mapped.options = YAML::Load("output_mapping: {nox: custom_nox}");
 
         auto scheme = PhysicsFactory::CreateScheme(cfg_out_mapped);
-        scheme->Initialize(cfg_out_mapped.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_out_mapped.options)), nullptr);
 
         export_state.fields["custom_nox"] = create_dv("custom_nox", 0.0);
         SetFieldValue("base_anthropogenic_nox", 1.0);
@@ -353,7 +354,7 @@ TEST_F(PhysicsTest, ConfigurableParameters) {
         "kw_coeff: [0.5, 0.5]");
 
     auto scheme = PhysicsFactory::CreateScheme(cfg);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     SetFieldValue("dms_emissions", 0.0, false);
     SetFieldValue("wind_speed", 10.0);

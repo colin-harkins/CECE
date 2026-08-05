@@ -15,7 +15,7 @@ namespace cece {
 static PhysicsRegistration<SeaSaltFortranScheme> register_scheme("sea_salt_fortran");
 #endif
 
-void SeaSaltFortranScheme::Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
+void SeaSaltFortranScheme::Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
     std::cout << "SeaSaltFortranScheme: Initialized." << "\n";
 }
 

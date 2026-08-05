@@ -15,7 +15,7 @@ namespace cece {
 static PhysicsRegistration<VolcanoFortranScheme> register_scheme("volcano_fortran");
 #endif
 
-void VolcanoFortranScheme::Initialize(const YAML::Node& config, CeceDiagnosticManager* diag_manager) {
+void VolcanoFortranScheme::Initialize(const conf::Value& config, CeceDiagnosticManager* diag_manager) {
     BasePhysicsScheme::Initialize(config, diag_manager);
     std::cout << "VolcanoFortranScheme: Initialized.\n";
 }

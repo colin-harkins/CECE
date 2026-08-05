@@ -1,7 +1,6 @@
 #include "cece/cece_io.hpp"
 
-#include <yaml-cpp/yaml.h>
-
+#include <conf/conf.hpp>
 #include <fstream>
 #include <stdexcept>
 
@@ -14,15 +13,19 @@ void CeceIO::Initialize(const std::string& config_file, int nx, int ny, int nz) 
         throw std::runtime_error("File not found: " + config_file);
     }
 
-    YAML::Node config = YAML::LoadFile(config_file);
+    conf::Config config = conf::Config::from_file(config_file);
     nx_ = nx;
     ny_ = ny;
     nz_ = nz;
 
-    if (config["cece_data"] && config["cece_data"]["streams"]) {
-        for (const auto& stream : config["cece_data"]["streams"]) {
-            for (const auto& var : stream["variables"]) {
-                std::string var_name = var["model"].as<std::string>();
+    if (config.has("cece_data.streams")) {
+        conf::Value streams = config.at("cece_data.streams");
+        for (std::size_t si = 0; si < streams.size(); ++si) {
+            conf::Value stream = streams[si];
+            conf::Value variables = stream["variables"];
+            for (std::size_t vi = 0; vi < variables.size(); ++vi) {
+                conf::Value var = variables[vi];
+                std::string var_name = var["model"].as_string();
                 var_names_.push_back(var_name);
 
                 DeviceView view(var_name, nx_, ny_, nz_);

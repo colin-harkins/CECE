@@ -1,5 +1,6 @@
 #include <Kokkos_Core.hpp>
 #include <cmath>
+#include <conf/value.hpp>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
@@ -82,7 +83,7 @@ int main(int argc, char** argv) {
         auto scheme = cece::PhysicsFactory::CreateScheme(dms_cfg);
         if (scheme) {
             std::cout << "[ComparisonDriver] Initializing DMS Physics Scheme..." << std::endl;
-            scheme->Initialize(dms_cfg.options, nullptr);
+            scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&dms_cfg.options)), nullptr);
             std::cout << "[ComparisonDriver] Running DMS Physics Scheme..." << std::endl;
             scheme->Run(import_state, export_state);
         } else {

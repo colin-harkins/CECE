@@ -1,3 +1,4 @@
+#include <conf/value.hpp>
 /**
  * @file test_fengsha_properties.cpp
  * @brief Property-based tests for the FENGSHA dust emission scheme.
@@ -170,7 +171,7 @@ TEST_F(FengshaPropertyTest, Property5_ZeroEmissionInvariant) {
     cfg.name = "fengsha";
     auto scheme = PhysicsFactory::CreateScheme(cfg);
     ASSERT_NE(scheme, nullptr) << "FengshaScheme must be registered";
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     for (int iter = 0; iter < 50; ++iter) {
         CeceImportState import_state;
@@ -272,8 +273,8 @@ TEST_F(FengshaPropertyTest, Property4_NumericalEquivalence) {
         ASSERT_NE(scheme_cpp, nullptr);
         ASSERT_NE(scheme_fort, nullptr);
 
-        scheme_cpp->Initialize(cfg_cpp.options, nullptr);
-        scheme_fort->Initialize(cfg_fort.options, nullptr);
+        scheme_cpp->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_cpp.options)), nullptr);
+        scheme_fort->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg_fort.options)), nullptr);
 
         // Create import state with random physically valid values
         CeceImportState import_state;
@@ -388,7 +389,7 @@ TEST_F(FengshaPropertyTest, Property6_ConfigInitializationDefaults) {
 
         auto scheme = PhysicsFactory::CreateScheme(cfg);
         ASSERT_NE(scheme, nullptr);
-        scheme->Initialize(cfg.options, nullptr);
+        scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
         // We can't directly access private members, but we can verify the scheme
         // was created and initialized without error. The actual parameter verification
@@ -404,7 +405,7 @@ TEST_F(FengshaPropertyTest, Property6_ConfigInitializationDefaults) {
         cfg.name = "fengsha";
         auto scheme = PhysicsFactory::CreateScheme(cfg);
         ASSERT_NE(scheme, nullptr);
-        EXPECT_NO_THROW(scheme->Initialize(cfg.options, nullptr));
+        EXPECT_NO_THROW(scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr));
     }
 
     // Verify full custom config
@@ -423,7 +424,7 @@ TEST_F(FengshaPropertyTest, Property6_ConfigInitializationDefaults) {
 
         auto scheme = PhysicsFactory::CreateScheme(cfg);
         ASSERT_NE(scheme, nullptr);
-        EXPECT_NO_THROW(scheme->Initialize(cfg.options, nullptr));
+        EXPECT_NO_THROW(scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr));
     }
 }
 

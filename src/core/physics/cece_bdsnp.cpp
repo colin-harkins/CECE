@@ -140,14 +140,14 @@ double bdsnp_canopy_reduction(double lai) {
 // Initialize
 // ============================================================================
 
-void BdsnpScheme::Initialize(const YAML::Node& config, CeceDiagnosticManager* diag_manager) {
+void BdsnpScheme::Initialize(const conf::Value& config, CeceDiagnosticManager* diag_manager) {
     // Call base class to parse input_mapping, output_mapping, diagnostics
     BasePhysicsScheme::Initialize(config, diag_manager);
 
     // ---- Read soil_no_method (default "bdsnp", fallback "yl95") ----
     soil_no_method_ = "bdsnp";
     if (config["soil_no_method"]) {
-        soil_no_method_ = config["soil_no_method"].as<std::string>();
+        soil_no_method_ = config["soil_no_method"].as_string();
     }
     if (soil_no_method_ != "bdsnp" && soil_no_method_ != "yl95") {
         std::cout << "BdsnpScheme: WARNING - Unknown soil_no_method '" << soil_no_method_ << "', falling back to 'bdsnp'\n";
@@ -162,41 +162,41 @@ void BdsnpScheme::Initialize(const YAML::Node& config, CeceDiagnosticManager* di
     wet_c2_ = -5.55;
 
     if (config["biome_coefficient_wet"]) {
-        a_biome_wet_ = config["biome_coefficient_wet"].as<double>();
+        a_biome_wet_ = config["biome_coefficient_wet"].as_double();
     } else if (config["a_biome_wet"]) {
-        a_biome_wet_ = config["a_biome_wet"].as<double>();
+        a_biome_wet_ = config["a_biome_wet"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default a_biome_wet = " << a_biome_wet_ << "\n";
     }
 
     if (config["temp_limit"]) {
-        tc_max_ = config["temp_limit"].as<double>();
+        tc_max_ = config["temp_limit"].as_double();
     } else if (config["tc_max"]) {
-        tc_max_ = config["tc_max"].as<double>();
+        tc_max_ = config["tc_max"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default tc_max = " << tc_max_ << "\n";
     }
 
     if (config["temp_exp_coeff"]) {
-        exp_coeff_ = config["temp_exp_coeff"].as<double>();
+        exp_coeff_ = config["temp_exp_coeff"].as_double();
     } else if (config["exp_coeff"]) {
-        exp_coeff_ = config["exp_coeff"].as<double>();
+        exp_coeff_ = config["exp_coeff"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default exp_coeff = " << exp_coeff_ << "\n";
     }
 
     if (config["wet_coeff_1"]) {
-        wet_c1_ = config["wet_coeff_1"].as<double>();
+        wet_c1_ = config["wet_coeff_1"].as_double();
     } else if (config["wet_c1"]) {
-        wet_c1_ = config["wet_c1"].as<double>();
+        wet_c1_ = config["wet_c1"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default wet_c1 = " << wet_c1_ << "\n";
     }
 
     if (config["wet_coeff_2"]) {
-        wet_c2_ = config["wet_coeff_2"].as<double>();
+        wet_c2_ = config["wet_coeff_2"].as_double();
     } else if (config["wet_c2"]) {
-        wet_c2_ = config["wet_c2"].as<double>();
+        wet_c2_ = config["wet_c2"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default wet_c2 = " << wet_c2_ << "\n";
     }
@@ -208,25 +208,25 @@ void BdsnpScheme::Initialize(const YAML::Node& config, CeceDiagnosticManager* di
     pulse_decay_constant_ = 0.5;
 
     if (config["fert_emission_factor"]) {
-        fert_emission_factor_ = config["fert_emission_factor"].as<double>();
+        fert_emission_factor_ = config["fert_emission_factor"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default fert_emission_factor = " << fert_emission_factor_ << "\n";
     }
 
     if (config["wet_dep_scaling"]) {
-        wet_dep_scaling_ = config["wet_dep_scaling"].as<double>();
+        wet_dep_scaling_ = config["wet_dep_scaling"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default wet_dep_scaling = " << wet_dep_scaling_ << "\n";
     }
 
     if (config["dry_dep_scaling"]) {
-        dry_dep_scaling_ = config["dry_dep_scaling"].as<double>();
+        dry_dep_scaling_ = config["dry_dep_scaling"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default dry_dep_scaling = " << dry_dep_scaling_ << "\n";
     }
 
     if (config["pulse_decay_constant"]) {
-        pulse_decay_constant_ = config["pulse_decay_constant"].as<double>();
+        pulse_decay_constant_ = config["pulse_decay_constant"].as_double();
     } else {
         std::cout << "BdsnpScheme: Using default pulse_decay_constant = " << pulse_decay_constant_ << "\n";
     }

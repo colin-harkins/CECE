@@ -15,7 +15,7 @@ namespace cece {
 static PhysicsRegistration<LightningFortranScheme> register_scheme("lightning_fortran");
 #endif
 
-void LightningFortranScheme::Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
+void LightningFortranScheme::Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
     std::cout << "LightningFortranScheme: Initialized." << "\n";
 }
 

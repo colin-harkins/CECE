@@ -15,7 +15,7 @@ namespace cece {
 static PhysicsRegistration<DustFortranScheme> register_scheme("dust_fortran");
 #endif
 
-void DustFortranScheme::Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
+void DustFortranScheme::Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
     std::cout << "DustFortranScheme: Initialized." << "\n";
 }
 

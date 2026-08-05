@@ -15,7 +15,7 @@ namespace cece {
 static PhysicsRegistration<DMSFortranScheme> register_scheme("dms_fortran");
 #endif
 
-void DMSFortranScheme::Initialize(const YAML::Node& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
+void DMSFortranScheme::Initialize(const conf::Value& /*config*/, CeceDiagnosticManager* /*diag_manager*/) {
     std::cout << "DMSFortranScheme: Initialized." << "\n";
 }
 

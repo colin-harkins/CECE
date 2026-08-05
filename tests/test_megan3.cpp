@@ -1,3 +1,4 @@
+#include <conf/value.hpp>
 /**
  * @file test_megan3.cpp
  * @brief Property-based tests for the MEGAN3 canopy model and emission activity.
@@ -639,7 +640,7 @@ RC_GTEST_PROP(Megan3SchemeProperty, Property17_MissingConfigDefaultValues, ()) {
     // should use documented defaults
 
     EmissionActivityCalculator calc;
-    calc.Initialize(config);
+    calc.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)));
 
     // Check defaults for omitted parameters
     if (!include_co2_conc) {
@@ -791,12 +792,12 @@ RC_GTEST_PROP(Megan3ParityProperty, Property15_CppFortranParity, ()) {
 
     // ---- Initialize and run C++ scheme ----
     Megan3Scheme scheme_cpp;
-    scheme_cpp.Initialize(config, nullptr);
+    scheme_cpp.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme_cpp.Run(import_cpp, export_cpp);
 
     // ---- Initialize and run Fortran scheme ----
     Megan3FortranScheme scheme_fort;
-    scheme_fort.Initialize(config, nullptr);
+    scheme_fort.Initialize(conf::Value::from_raw(static_cast<const void*>(&config)), nullptr);
     scheme_fort.Run(import_fort, export_fort);
 
     // ---- Compare MEGAN_ISOP ----
@@ -1010,7 +1011,7 @@ TEST_F(Megan3SchemeTest, SoilNOReadFromExportState) {
 
     auto scheme = PhysicsFactory::CreateScheme(cfg);
     ASSERT_NE(scheme, nullptr);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Set a known soil NO value in the export state
     double soil_no_value = 5.5e-8;
@@ -1048,7 +1049,7 @@ TEST_F(Megan3SchemeTest, MissingSoilNoxEmissionsProducesZeroNO) {
 
     auto scheme = PhysicsFactory::CreateScheme(cfg);
     ASSERT_NE(scheme, nullptr);
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Remove soil_nox_emissions from export state
     export_state.fields.erase("soil_nox_emissions");
@@ -1094,7 +1095,7 @@ TEST_F(Megan3SchemeTest, OutputMappingRenamesMeganFields) {
     // Add the mapped field so MarkModified succeeds.
     export_state.fields["ISOP_BIOG"] = create_dv("isop_biog", 0.0);
 
-    scheme->Initialize(cfg.options, nullptr);
+    scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), nullptr);
 
     // Run the scheme
     scheme->Run(import_state, export_state);
@@ -1135,7 +1136,7 @@ TEST_F(Megan3SchemeTest, DiagnosticFieldsRegisteredWhenEnabled) {
     CeceDiagnosticManager diag_manager;
 
     // Initialize with diagnostics enabled — should not throw
-    EXPECT_NO_THROW(scheme->Initialize(cfg.options, &diag_manager));
+    EXPECT_NO_THROW(scheme->Initialize(conf::Value::from_raw(static_cast<const void*>(&cfg.options)), &diag_manager));
 }
 
 // ============================================================================
@@ -1167,7 +1168,7 @@ TEST_F(Megan3SchemeTest, BdsnpToMegan3Pipeline) {
     bdsnp_config["soil_no_method"] = "yl95";
 
     BdsnpScheme bdsnp_scheme;
-    bdsnp_scheme.Initialize(bdsnp_config, nullptr);
+    bdsnp_scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&bdsnp_config)), nullptr);
     bdsnp_scheme.Run(import_state, export_state);
 
     // Verify BDSNP wrote non-zero soil NO
@@ -1180,7 +1181,7 @@ TEST_F(Megan3SchemeTest, BdsnpToMegan3Pipeline) {
     auto megan_config = MakeConfig();
 
     Megan3Scheme megan_scheme;
-    megan_scheme.Initialize(megan_config, nullptr);
+    megan_scheme.Initialize(conf::Value::from_raw(static_cast<const void*>(&megan_config)), nullptr);
 
     // Sync soil_nox_emissions to device so MEGAN3 can read it
     dv_soil_nox.sync<Kokkos::DefaultExecutionSpace>();
