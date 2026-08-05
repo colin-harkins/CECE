@@ -1,7 +1,7 @@
 # CECE: Community Emissions Computing Engine
 
 
-this is a dev test 
+this is a dev test
 
 CECE is a high-performance, performance-portable emissions compute component for Earth System Models. It is built using C++20 and the Kokkos programming model, designed to run efficiently on both multi-core CPUs and GPUs.
 
