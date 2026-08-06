@@ -122,26 +122,17 @@ struct RecordBracket {
  * day-of-week) and always use nearest-neighbour. Only the monthly cadence
  * honours @c tintalgo for mid-month linear interpolation.
  */
-RecordBracket cadence_record_bracket(const std::string& cadence,
-                                     const std::string& tintalgo,
-                                     const SimDateTime& dt,
-                                     int file_nt,
-                                     int yearFirst = 0,
-                                     int yearLast = 0,
-                                     int yearAlign = 0,
-                                     const std::string& taxmode = "") {
+RecordBracket cadence_record_bracket(const std::string& cadence, const std::string& tintalgo, const SimDateTime& dt, int file_nt, int yearFirst = 0,
+                                     int yearLast = 0, int yearAlign = 0, const std::string& taxmode = "") {
     RecordBracket br;
     if (cadence.empty() || !dt.valid) return br;
 
     std::string c = cadence;
-    std::transform(c.begin(), c.end(), c.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    std::transform(c.begin(), c.end(), c.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     std::string algo = tintalgo;
-    std::transform(algo.begin(), algo.end(), algo.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    std::transform(algo.begin(), algo.end(), algo.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     std::string tax = taxmode;
-    std::transform(tax.begin(), tax.end(), tax.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    std::transform(tax.begin(), tax.end(), tax.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     const bool linear = (algo == "linear");
 
     auto clamp_idx = [&](int idx) {
@@ -211,8 +202,7 @@ RecordBracket cadence_record_bracket(const std::string& cadence,
 
         // Mid-month linear interpolation convention.
         const int dim = tick::Gregorian_Calendar::days_in_month(dt.year, dt.month);
-        const double frac = (static_cast<double>(dt.day - 1) + dt.hour / 24.0)
-                            / static_cast<double>(dim);
+        const double frac = (static_cast<double>(dt.day - 1) + dt.hour / 24.0) / static_cast<double>(dim);
         const int nrec = (file_nt > 0) ? file_nt : 12;
 
         if (frac >= 0.5) {
@@ -253,15 +243,8 @@ RecordBracket cadence_record_bracket(const std::string& cadence,
  * When this function returns an invalid bracket, the caller should fall back
  * to the arithmetic cadence_record_bracket() above.
  */
-RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
-                                             const std::string& time_var,
-                                             const SimDateTime& dt,
-                                             int file_nt,
-                                             const std::string& tintalgo,
-                                             int yearFirst,
-                                             int yearLast,
-                                             int yearAlign,
-                                             const std::string& taxmode) {
+RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset, const std::string& time_var, const SimDateTime& dt, int file_nt,
+                                             const std::string& tintalgo, int yearFirst, int yearLast, int yearAlign, const std::string& taxmode) {
     RecordBracket br;
     if (!dataset || !dt.valid || file_nt < 1) return br;
 
@@ -362,8 +345,7 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
     const tick::Date_Time sim_tdt{dt.year, dt.month, dt.day, dt.hour, 0, 0, 0};
     const tick::Time_Point ref_tp = tick::Gregorian_Calendar::to_time_point(ref_dt);
     const tick::Time_Point sim_tp = tick::Gregorian_Calendar::to_time_point(sim_tdt);
-    const double sim_days = static_cast<double>((sim_tp - ref_tp).nanos())
-                            / static_cast<double>(tick::nanos_per_day);
+    const double sim_days = static_cast<double>((sim_tp - ref_tp).nanos()) / static_cast<double>(tick::nanos_per_day);
 
     // Estimate the scale/epoch of the file's time values.
     // If file starts at yearFirst (time_vals[0] ~ 0..31), assume "days since yearFirst-01-01".
@@ -396,8 +378,7 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
     double file_offset = 0.0;
     if (n_vals >= 2) {
         // Average spacing between records in file units.
-        double avg_spacing = (time_vals[n_vals - 1] - time_vals[0])
-                             / static_cast<double>(n_vals - 1);
+        double avg_spacing = (time_vals[n_vals - 1] - time_vals[0]) / static_cast<double>(n_vals - 1);
 
         // Determine scale: if spacing ~ 28-31, units are likely days.
         // If spacing ~ 1, units might be months. If spacing ~ 720, hours.
@@ -467,15 +448,13 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
             // yearAlign then add to time_days[0].
             const tick::Date_Time align_ref{yearAlign, 1, 1, 0, 0, 0, 0};
             const tick::Time_Point align_tp = tick::Gregorian_Calendar::to_time_point(align_ref);
-            double sim_days_from_align = static_cast<double>((sim_tp - align_tp).nanos())
-                                         / static_cast<double>(tick::nanos_per_day);
+            double sim_days_from_align = static_cast<double>((sim_tp - align_tp).nanos()) / static_cast<double>(tick::nanos_per_day);
             target = time_days[0] + sim_days_from_align;
         }
 
         // Handle taxmode for out-of-range targets.
         std::string tax = taxmode;
-        std::transform(tax.begin(), tax.end(), tax.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        std::transform(tax.begin(), tax.end(), tax.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
         double file_start = time_days[0];
         double file_end = time_days[n_vals - 1];
@@ -508,8 +487,7 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
         }
 
         std::string talgo = tintalgo;
-        std::transform(talgo.begin(), talgo.end(), talgo.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        std::transform(talgo.begin(), talgo.end(), talgo.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
         if (talgo == "linear" && lo != hi) {
             double span = time_days[hi] - time_days[lo];
@@ -520,8 +498,7 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset,
             br.weight = w;
         } else {
             // Nearest: pick whichever record is closer.
-            if (hi < static_cast<int>(n_vals) &&
-                std::abs(time_days[hi] - target) < std::abs(time_days[lo] - target)) {
+            if (hi < static_cast<int>(n_vals) && std::abs(time_days[hi] - target) < std::abs(time_days[lo] - target)) {
                 br.i0 = br.i1 = hi;
             } else {
                 br.i0 = br.i1 = lo;
@@ -878,20 +855,16 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                 // Try the robust time-axis reader first (for monthly cadence with
                 // multi-year files where yearFirst is specified).
                 std::string c_lower = cadence;
-                std::transform(c_lower.begin(), c_lower.end(), c_lower.begin(),
-                               [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                std::transform(c_lower.begin(), c_lower.end(), c_lower.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
                 if (c_lower == "monthly" && yearFirst > 0 && file_nt > 12) {
-                    bracket = resolve_time_bracket_from_axis(
-                        read_dataset, time_var, sim_dt, file_nt,
-                        tintalgo, yearFirst, yearLast, yearAlign, taxmode);
+                    bracket =
+                        resolve_time_bracket_from_axis(read_dataset, time_var, sim_dt, file_nt, tintalgo, yearFirst, yearLast, yearAlign, taxmode);
                 }
 
                 // Fallback to arithmetic cadence computation if the time-axis
                 // reader didn't produce a valid bracket.
                 if (!bracket.valid) {
-                    bracket = cadence_record_bracket(
-                        cadence, tintalgo, sim_dt, file_nt,
-                        yearFirst, yearLast, yearAlign, taxmode);
+                    bracket = cadence_record_bracket(cadence, tintalgo, sim_dt, file_nt, yearFirst, yearLast, yearAlign, taxmode);
                 }
 
                 if (!bracket.valid) {
@@ -902,14 +875,14 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
 
                 // Diagnostic: report which time slice(s) are being read from the file.
                 if (bracket.i0 == bracket.i1 || bracket.weight == 0.0) {
-                    CECE_LOG_INFO("[DRIVER] Reading time slice " + std::to_string(bracket.i0) + "/" + std::to_string(file_nt-1) + " from '" +
+                    CECE_LOG_INFO("[DRIVER] Reading time slice " + std::to_string(bracket.i0) + "/" + std::to_string(file_nt - 1) + " from '" +
                                   input_file_path + "' for field '" + var_name + "'" +
                                   (cadence.empty() ? " (cycling, step=" + std::to_string(step_index_) + ")"
                                                    : " (cadence=" + cadence + ", time=" + time_iso8601 + ")"));
                 } else {
                     CECE_LOG_INFO("[DRIVER] Interpolating time slices " + std::to_string(bracket.i0) + " & " + std::to_string(bracket.i1) + "/" +
-                                  std::to_string(file_nt-1) + " (w=" + std::to_string(bracket.weight) + ") from '" + input_file_path + "' for field '" +
-                                  var_name + "' (cadence=" + cadence + ", tintalgo=" + tintalgo + ", time=" + time_iso8601 + ")");
+                                  std::to_string(file_nt - 1) + " (w=" + std::to_string(bracket.weight) + ") from '" + input_file_path +
+                                  "' for field '" + var_name + "' (cadence=" + cadence + ", tintalgo=" + tintalgo + ", time=" + time_iso8601 + ")");
                 }
 
                 int file_nx = 0;
