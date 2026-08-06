@@ -145,7 +145,7 @@ RecordBracket cadence_record_bracket(const std::string& cadence, const std::stri
         br.i0 = br.i1 = clamp_idx(dt.hour);
         br.valid = true;
     } else if (c == "weekly") {
-        br.i0 = br.i1 = clamp_idx(dt.day_of_week);
+        br.i0 = br.i1 = clamp_idx(dt.day_of_week) - 1;
         br.valid = true;
     } else if (c == "monthly") {
         // Determine effective year for multi-year files.
