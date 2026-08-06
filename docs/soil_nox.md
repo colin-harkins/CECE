@@ -12,8 +12,8 @@ Two algorithms are supported:
 Both modes set emissions to zero when soil temperature is below 0°C.
 
 References:
-- Hudman et al. (2012), Berkeley-Dalhousie Soil NO Parameterization
-- Yienger, J.J. and H. Levy II (1995), *JGR*, 100(D6), 11447–11464
+- Hudman, R. C., Moore, N. E., Mebust, A. K., Martin, R. V., Russell, A. R., Valin, L. C., and Cohen, R. C.: Steps towards a mechanistic model of global soil nitric oxide emissions: implementation and space based-constraints, Atmos. Chem. Phys., 12, 7779–7795, doi:[10.5194/acp-12-7779-2012](https://doi.org/10.5194/acp-12-7779-2012), 2012.
+- Yienger, J. J., and H. Levy II (1995), Empirical model of global soil-biogenic NOX emissions, J. Geophys. Res., 100(D6), 11447–11464, doi:[10.1029/95JD00370](https://doi.org/10.1029/95JD00370).
 
 ## Registration Names
 
