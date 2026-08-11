@@ -83,8 +83,8 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
  * day-of-week) and always use nearest-neighbour. Only the monthly cadence
  * honours @c tintalgo for mid-month linear interpolation.
  */
-RecordBracket cadence_record_bracket(const std::string& cadence, const std::string& tintalgo, const SimDateTime& dt, int file_nt, int yearFirst = 0,
-                                     int yearLast = 0, int yearAlign = 0, const std::string& taxmode = "") {
+RecordBracket cadence_record_bracket(const std::string& cadence, const std::string& tintalgo, const SimDateTime& dt, int file_nt, int yearFirst,
+                                     int yearLast, int yearAlign, const std::string& taxmode) {
     RecordBracket br;
     if (cadence.empty() || !dt.valid) return br;
 
@@ -495,6 +495,8 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset, const 
 }
 
 }  // namespace detail
+
+using namespace detail;
 
 CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, int nx, int ny, int nz, const double* lon_coords, int lon_len,
                                                const double* lat_coords, int lat_len, MPI_Comm comm_c)

@@ -39,7 +39,8 @@ RecordBracket cadence_record_bracket(const std::string& cadence, const std::stri
                                      int yearLast = 0, int yearAlign = 0, const std::string& taxmode = "");
 
 RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset, const std::string& time_var, const SimDateTime& dt, int file_nt,
-                                             const std::string& tintalgo, int yearFirst, int yearLast, int yearAlign, const std::string& taxmode);
+                                             const std::string& tintalgo, int yearFirst = 0, int yearLast = 0, int yearAlign = 0,
+                                             const std::string& taxmode = "");
 
 }  // namespace detail
 
