@@ -50,3 +50,14 @@ amio_read_manifest_facade_*.yaml
 amio_coord_manifest.yaml
 core.*
 GRA2PESv2.0_config_test1.yaml
+
+# ---- AI folders ----
+specify/
+.specify/
+specs/
+.github/agents/
+.github/prompts/
+.superpowers/
+.gemini/
+.vscode/
+docs/superpowers/

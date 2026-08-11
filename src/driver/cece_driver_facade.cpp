@@ -31,31 +31,14 @@ void amio_set_parent_communicator(MPI_Fint comm);
 
 namespace cece {
 
-namespace {
-
-/**
- * @brief Simulation datetime fields derived from an ISO-8601 timestamp.
- *
- * Used by the per-stream temporal-cadence mechanism to map the current
- * simulation time onto a record index within an input file.
- */
-struct SimDateTime {
-    int year = 0;
-    int month = 0;        ///< 1-12
-    int day = 0;          ///< 1-31
-    int hour = 0;         ///< 0-23
-    int day_of_week = 0;  ///< 0=Sunday .. 6=Saturday
-    bool valid = false;
-};
+namespace detail {
 
 /**
  * @brief Parse an ISO-8601 timestamp ("YYYY-MM-DDThh:mm:ss") into calendar fields.
  *
  * Parsing and calendar arithmetic use the HELM TICK library (tick::parse_iso8601
- * and tick::Gregorian_Calendar) rather than std::chrono, keeping time handling
- * consistent with the rest of CECE. The day-of-week is derived from TICK's
- * proleptic-Gregorian day count (TICK's epoch 2026-01-01 is a Thursday), so it
- * is correct for any date.
+ * and tick::Gregorian_Calendar). The day-of-week uses ISO 8601 numbering
+ * (1=Monday ... 7=Sunday).
  */
 SimDateTime parse_sim_datetime(const std::string& iso8601) {
     SimDateTime dt;
@@ -65,14 +48,7 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
         dt.month = tdt.month;
         dt.day = tdt.day;
         dt.hour = tdt.hour;
-
-        // Whole days since TICK's epoch (2026-01-01T00:00:00), floored so dates
-        // before the epoch map correctly. 2026-01-01 is a Thursday, i.e. index 4
-        // in a 0=Sunday..6=Saturday week; offset by that to anchor the cycle.
-        const std::int64_t nanos = tick::Gregorian_Calendar::to_time_point(tdt).nanos();
-        std::int64_t days = nanos / tick::nanos_per_day;
-        if (nanos < 0 && nanos % tick::nanos_per_day != 0) --days;  // floor toward -inf
-        dt.day_of_week = static_cast<int>(((days + 4) % 7 + 7) % 7);
+        dt.day_of_week = tick::Gregorian_Calendar::day_of_week(tdt);
         dt.valid = true;
     } catch (const std::exception&) {
         // Malformed timestamp: use explicit default values so callers fall back
@@ -81,21 +57,6 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
     }
     return dt;
 }
-
-/**
- * @brief A pair of file records that bracket the current simulation time, plus a
- *        blend weight for linear temporal interpolation.
- *
- * @c weight is the fraction toward @c i1: the interpolated field is
- * @f$ (1-w)\,\mathrm{rec}[i_0] + w\,\mathrm{rec}[i_1] @f$. When @c weight is 0
- * (or @c i0 == @c i1) a single read of @c i0 suffices.
- */
-struct RecordBracket {
-    int i0 = 0;
-    int i1 = 0;
-    double weight = 0.0;
-    bool valid = false;  ///< false -> caller falls back to legacy step-index cycling.
-};
 
 /**
  * @brief Map a simulation datetime onto a record bracket for a given cadence.
@@ -145,7 +106,9 @@ RecordBracket cadence_record_bracket(const std::string& cadence, const std::stri
         br.i0 = br.i1 = clamp_idx(dt.hour);
         br.valid = true;
     } else if (c == "weekly") {
-        br.i0 = br.i1 = clamp_idx(dt.day_of_week) - 1;
+        // dt.day_of_week is ISO 8601 (1=Monday ... 7=Sunday).
+        // Weekly profile records are 0-indexed (0=Monday ... 6=Sunday).
+        br.i0 = br.i1 = clamp_idx(dt.day_of_week - 1);
         br.valid = true;
     } else if (c == "monthly") {
         // Determine effective year for multi-year files.
@@ -439,17 +402,32 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset, const 
         // Our sim_days is relative to yearFirst (2000-01-01).
         // Target in file coords = time_days[0] + sim_days.
 
-        double target = time_days[0] + sim_days;
+        // Estimate the offset of record 0 relative to yearFirst-01-01 00:00:00.
+        // For monthly cadence, time_days[0] represents the first record's timestamp.
+        // If time_days[0] represents a mid-month point (~15 days into month 1),
+        // rec0_days is ~15.2 days (0.5 * avg_spacing). If time_days[0] represents start-of-month,
+        // rec0_days is 0.
+        double rec0_days = 0.0;
+        if (avg_spacing >= 25.0 && avg_spacing <= 32.0) {
+            double month_phase = std::fmod(time_days[0], avg_spacing);
+            if (month_phase < 0) month_phase += avg_spacing;
+            if (month_phase >= 5.0) {
+                rec0_days = 0.5 * avg_spacing;
+            }
+        }
+
+        double base_time = time_days[0] - rec0_days;
+        double target = base_time + sim_days;
 
         // Apply yearAlign adjustment.
         if (yearAlign > 0 && yearFirst > 0 && yearAlign != yearFirst) {
             // sim_days is computed relative to yearFirst, but the simulation
             // year may not map directly. Recompute sim_days relative to
-            // yearAlign then add to time_days[0].
+            // yearAlign then add to base_time.
             const tick::Date_Time align_ref{yearAlign, 1, 1, 0, 0, 0, 0};
             const tick::Time_Point align_tp = tick::Gregorian_Calendar::to_time_point(align_ref);
             double sim_days_from_align = static_cast<double>((sim_tp - align_tp).nanos()) / static_cast<double>(tick::nanos_per_day);
-            target = time_days[0] + sim_days_from_align;
+            target = base_time + sim_days_from_align;
         }
 
         // Handle taxmode for out-of-range targets.
@@ -516,7 +494,7 @@ RecordBracket resolve_time_bracket_from_axis(amio_dataset_handle dataset, const 
     return br;
 }
 
-}  // namespace
+}  // namespace detail
 
 CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, int nx, int ny, int nz, const double* lon_coords, int lon_len,
                                                const double* lat_coords, int lat_len, MPI_Comm comm_c)
