@@ -543,12 +543,12 @@ Configuration for data streams that read external emission inventories and auxil
 | `name` | String | Unique identifier for the data stream |
 | `file` | String | Path to NetCDF data file(s) |
 | `refresh_interval_seconds` | Integer | (Optional) Data ingestion interval in seconds. Must be a positive multiple of `timestep_seconds`. Default: `0` (use `timestep_seconds`, i.e., ingest every step). |
-| `cadence` | String | (Optional) Temporal cadence for record selection: `hourly`, `weekly`, or `monthly`. When set, the driver maps the simulation datetime onto the appropriate file record (hour-of-day, day-of-week, or month). If omitted, legacy step-index cycling is used. |
+| `cadence` | String | (Optional) Temporal cadence for record selection: `hourly`, `daily`, `weekly`, or `monthly`. When set, the driver maps the simulation datetime onto the appropriate file record (hour-of-day, day-of-year, day-of-week, or month). If omitted, legacy step-index cycling is used. |
 | `yearFirst` | Integer | First calendar year of data coverage in the file |
 | `yearLast` | Integer | Last calendar year of data coverage in the file |
 | `yearAlign` | Integer | Simulation year corresponding to `yearFirst` (first file year). Default: same as `yearFirst` |
 | `taxmode` | String | Behavior when simulation year is out of range: `cycle` (repeat file year range), `extend` (clamp to `yearFirst`/`yearLast`), or `limit` (return invalid / fail) |
-| `tintalgo` | String | Temporal interpolation: `linear` or `nearest`. For `monthly` cadence with `linear`, mid-month interpolation is applied between bracketing records. Default: `nearest`. |
+| `tintalgo` | String | Temporal interpolation: `linear` or `nearest`. For `monthly` or `daily` cadence with `linear`, linear interpolation is applied between bracketing records. Default: `nearest`. |
 | `mapalgo` | String | Spatial regridding: `consd`, `bilinear`, `consf`, `nn`, `redist`, or `passthrough` (skip regridding — data must be on the model grid already, sizes are validated) |
 | `data_model` | String | (Optional) AMIO NetCDF data model for reads: `enhanced`, `classic`, or `auto`. Default behavior is auto (`enhanced` first, then `classic` fallback on backend open failure). |
 | `variables` | List | Variable mappings between file and model |
@@ -691,7 +691,26 @@ cece_data:
       tintalgo: "linear"        # Smooth mid-month interpolation
 ```
 
-#### 6. Diurnal (Hourly) and Weekly Variation Profiles
+#### 6. Daily Climatologies and Daily Emissions Files
+**Scenario:** Reading daily data files (e.g., 365/366-day daily climatology or multi-year daily emissions).
+```yaml
+cece_data:
+  streams:
+    - name: "DAILY_CLIMATOLOGY"
+      file: "/data/climatology/daily_emissions.nc"
+      cadence: "daily"          # Selects record 0-364/365 by day of year
+      tintalgo: "linear"        # Smooth intra-day linear interpolation
+
+    - name: "MULTIYEAR_DAILY_EMISSIONS"
+      file: "/data/emissions/daily_inventory_2000-2023.nc"
+      cadence: "daily"          # Maps simulation date to exact day in multi-year daily dataset
+      yearFirst: 2000
+      yearLast: 2023
+      yearAlign: 2000
+      taxmode: "extend"
+```
+
+#### 7. Diurnal (Hourly) and Weekly Variation Profiles
 **Scenario:** Applying 24-hour diurnal scale factors or 7-day weekly scale factors.
 ```yaml
 cece_data:
@@ -702,7 +721,7 @@ cece_data:
 
     - name: "WEEKLY_SCALE"
       file: "/data/profiles/weekly_factors.nc"
-      cadence: "weekly"         # Selects record 0-6 by day of week
+      cadence: "weekly"         # Selects record 0-6 by day of week (0=Mon ... 6=Sun)
 ```
 
 ---

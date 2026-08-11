@@ -978,4 +978,35 @@ TEST(CeceCadenceIndexing, WeeklyCadenceISO8601) {
     EXPECT_EQ(br_thu.i1, 3);
 }
 
+TEST(CeceCadenceIndexing, DailyCadence) {
+    using namespace cece::detail;
+
+    // 2026-01-01 -> day_of_year = 1 -> record index 0
+    SimDateTime dt_jan1 = parse_sim_datetime("2026-01-01T00:00:00");
+    EXPECT_TRUE(dt_jan1.valid);
+    EXPECT_EQ(dt_jan1.day_of_year, 1);
+    RecordBracket br_jan1 = cadence_record_bracket("daily", "nearest", dt_jan1, 365);
+    EXPECT_TRUE(br_jan1.valid);
+    EXPECT_EQ(br_jan1.i0, 0);
+    EXPECT_EQ(br_jan1.i1, 0);
+
+    // 2026-12-31 -> day_of_year = 365 -> record index 364
+    SimDateTime dt_dec31 = parse_sim_datetime("2026-12-31T00:00:00");
+    EXPECT_TRUE(dt_dec31.valid);
+    EXPECT_EQ(dt_dec31.day_of_year, 365);
+    RecordBracket br_dec31 = cadence_record_bracket("daily", "nearest", dt_dec31, 365);
+    EXPECT_TRUE(br_dec31.valid);
+    EXPECT_EQ(br_dec31.i0, 364);
+    EXPECT_EQ(br_dec31.i1, 364);
+
+    // Leap year: 2024-12-31 -> day_of_year = 366 -> record index 365
+    SimDateTime dt_leap = parse_sim_datetime("2024-12-31T00:00:00");
+    EXPECT_TRUE(dt_leap.valid);
+    EXPECT_EQ(dt_leap.day_of_year, 366);
+    RecordBracket br_leap = cadence_record_bracket("daily", "nearest", dt_leap, 366);
+    EXPECT_TRUE(br_leap.valid);
+    EXPECT_EQ(br_leap.i0, 365);
+    EXPECT_EQ(br_leap.i1, 365);
+}
+
 }  // namespace cece

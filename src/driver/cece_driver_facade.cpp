@@ -49,6 +49,7 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
         dt.day = tdt.day;
         dt.hour = tdt.hour;
         dt.day_of_week = tick::Gregorian_Calendar::day_of_week(tdt);
+        dt.day_of_year = tick::Gregorian_Calendar::day_of_year(tdt);
         dt.valid = true;
     } catch (const std::exception&) {
         // Malformed timestamp: use explicit default values so callers fall back
@@ -61,9 +62,9 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
 /**
  * @brief Map a simulation datetime onto a record bracket for a given cadence.
  *
- * @param cadence    One of "hourly", "weekly", "monthly" (case-insensitive).
+ * @param cadence    One of "hourly", "daily", "weekly", "monthly" (case-insensitive).
  * @param tintalgo   Time-interpolation algorithm: "linear" enables mid-month
- *                   interpolation; anything else -> nearest.
+ *                   or intra-day interpolation; anything else -> nearest.
  * @param dt         Parsed simulation datetime.
  * @param file_nt    Number of records available in the file (for clamping).
  * @param yearFirst  First year covered by the file (0 = unknown/climatology).
@@ -78,10 +79,12 @@ SimDateTime parse_sim_datetime(const std::string& iso8601) {
  *
  * For monthly cadence with multi-year files (file_nt > 12), the record index
  * is computed as: (effective_year - yearFirst) * 12 + (month - 1).
+ * For daily cadence with multi-year files (file_nt > 366), the record index
+ * is computed from cumulative day offsets across years plus (day_of_year - 1).
  *
  * Hourly and weekly cadences select discrete profile records (hour-of-day,
- * day-of-week) and always use nearest-neighbour. Only the monthly cadence
- * honours @c tintalgo for mid-month linear interpolation.
+ * day-of-week) and always use nearest-neighbour. Monthly and daily cadences
+ * honour @c tintalgo for linear temporal interpolation.
  */
 RecordBracket cadence_record_bracket(const std::string& cadence, const std::string& tintalgo, const SimDateTime& dt, int file_nt, int yearFirst,
                                      int yearLast, int yearAlign, const std::string& taxmode) {
@@ -104,6 +107,64 @@ RecordBracket cadence_record_bracket(const std::string& cadence, const std::stri
 
     if (c == "hourly") {
         br.i0 = br.i1 = clamp_idx(dt.hour);
+        br.valid = true;
+    } else if (c == "daily") {
+        const bool multi_year = (yearFirst > 0 && file_nt > 366);
+        int eff_year = dt.year;
+
+        if (multi_year) {
+            if (yearAlign > 0) {
+                eff_year = yearFirst + (dt.year - yearAlign);
+            }
+
+            int yLast = yearLast;
+            if (yLast <= 0) {
+                yLast = yearFirst + std::max(1, file_nt / 365) - 1;
+            }
+
+            if (eff_year < yearFirst || eff_year > yLast) {
+                const int year_span = yLast - yearFirst + 1;
+                if (tax == "limit") {
+                    return br;
+                } else if (tax == "extend") {
+                    eff_year = std::max(yearFirst, std::min(eff_year, yLast));
+                } else {
+                    int offset = (eff_year - yearFirst) % year_span;
+                    if (offset < 0) offset += year_span;
+                    eff_year = yearFirst + offset;
+                }
+            }
+        }
+
+        int abs_day;
+        if (multi_year) {
+            int days_offset = 0;
+            for (int y = yearFirst; y < eff_year; ++y) {
+                days_offset += tick::Gregorian_Calendar::days_in_year(y);
+            }
+            abs_day = days_offset + (dt.day_of_year - 1);
+        } else {
+            abs_day = dt.day_of_year - 1;  // 0-364 or 0-365 for single-year / climatology files
+        }
+
+        if (!linear) {
+            br.i0 = br.i1 = clamp_idx(abs_day);
+            br.valid = true;
+            return br;
+        }
+
+        const double frac = dt.hour / 24.0;
+        const int nrec = (file_nt > 0) ? file_nt : 365;
+
+        if (frac >= 0.5) {
+            br.i0 = abs_day % nrec;
+            br.i1 = (abs_day + 1) % nrec;
+            br.weight = frac - 0.5;
+        } else {
+            br.i0 = (abs_day - 1 + nrec) % nrec;
+            br.i1 = abs_day % nrec;
+            br.weight = frac + 0.5;
+        }
         br.valid = true;
     } else if (c == "weekly") {
         // dt.day_of_week is ISO 8601 (1=Monday ... 7=Sunday).
@@ -832,11 +893,11 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                 //    yearFirst/yearAlign/taxmode for multi-year files.
                 RecordBracket bracket;
 
-                // Try the robust time-axis reader first (for monthly cadence with
+                // Try the robust time-axis reader first (for monthly or daily cadence with
                 // multi-year files where yearFirst is specified).
                 std::string c_lower = cadence;
                 std::transform(c_lower.begin(), c_lower.end(), c_lower.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-                if (c_lower == "monthly" && yearFirst > 0 && file_nt > 12) {
+                if ((c_lower == "monthly" || c_lower == "daily") && yearFirst > 0 && file_nt > 12) {
                     bracket =
                         resolve_time_bracket_from_axis(read_dataset, time_var, sim_dt, file_nt, tintalgo, yearFirst, yearLast, yearAlign, taxmode);
                 }
