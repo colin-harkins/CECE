@@ -916,7 +916,7 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
 
                 // Diagnostic: report which time slice(s) are being read from the file.
                 if (bracket.i0 == bracket.i1 || bracket.weight == 0.0) {
-                    CECE_LOG_INFO("[DRIVER] Reading time slice " + std::to_string(bracket.i0) + "/" + std::to_string(file_nt - 1) + " from '" +
+                    CECE_LOG_INFO("[DRIVER] Reading time slice " + std::to_string(bracket.i0 + 1) + "/" + std::to_string(file_nt) + " from '" +
                                   input_file_path + "' for field '" + var_name + "'" +
                                   (cadence.empty() ? " (cycling, step=" + std::to_string(step_index_) + ")"
                                                    : " (cadence=" + cadence + ", time=" + time_iso8601 + ")"));
