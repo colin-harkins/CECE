@@ -639,7 +639,7 @@
 <li><strong>Vertical Distribution:</strong> Multiple algorithms for mapping 2D emissions to 3D atmospheric grids with strict mass conservation. See the <a href="../vertical_distribution/">Vertical Distribution Documentation</a> for complete algorithm descriptions and usage examples.</li>
 <li><strong>PhysicsFactory:</strong> A self-registration registry for physics schemes. New schemes should inherit from <code>BasePhysicsScheme</code> and use the <code>PhysicsRegistration&lt;T&gt;</code> pattern.</li>
 <li><strong>Internal State:</strong> Persisted via <code>CeceInternalData</code> to maintain field handles and metadata across ESMF phases, avoiding redundant lookups.</li>
-<li><strong>TIDE Integration:</strong> High-performance data ingestion for external emission inventories via the TIDE (Temporal Interpolation &amp; Data Extraction) library with smart caching and regridding capabilities.</li>
+<li><strong>Data Ingestion:</strong> High-performance data ingestion for external emission inventories via AMIO (Asynchronous Multidimensional I/O) with AXIS regridding and DAGR pipeline orchestration.</li>
 </ul>
 <h2 id="global-coding-standards">Global Coding Standards<a class="headerlink" href="#global-coding-standards" title="Permanent link">&para;</a></h2>
 <ul>
@@ -681,7 +681,7 @@
 - Temporal scaling profiles (diurnal, weekly, seasonal)
 - Environmental dependencies and dynamic scaling factors
 - Multiple vertical distribution algorithms
-- TIDE data stream integration with smart caching
+- AMIO/AXIS data stream integration with regridding and temporal interpolation
 - Physics scheme configuration and parameter tuning</p>
 <p>For complete configuration reference with all available options and examples, see the <a href="../configuration/">Configuration Documentation</a>.</p>
 <h2 id="development-environment">Development Environment<a class="headerlink" href="#development-environment" title="Permanent link">&para;</a></h2>
@@ -728,7 +728,8 @@
 <li><strong>ESMF User Guide:</strong> <a href="https://earthsystemmodeling.org/docs/release/latest/ESMF_usrdoc">https://earthsystemmodeling.org/docs/release/latest/ESMF_usrdoc</a></li>
 <li><strong>ESMF Reference Manual:</strong> <a href="https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc/">https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc/</a></li>
 <li><strong>NUOPC Reference Manual:</strong> <a href="https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc">https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc</a></li>
-<li><strong>TIDE Documentation:</strong> Located at <code>src/io/tide</code> in the CECE repository</li>
+<li><strong>AMIO Documentation:</strong> Located in <code>extern/helm/libs/amio</code> in the CECE repository</li>
+<li><strong>Data Stream Parser:</strong> <a href="../datastream_parser/">datastream_parser.md</a> — C++ API for stream config serialization and validation</li>
 <li><strong>Fortran Standards:</strong> <a href="https://www.iso.org/standard/44473.html">Fortran 2008 Standard (ISO/IEC 1539-1:2010)</a></li>
 </ul>
 

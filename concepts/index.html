@@ -340,16 +340,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-ceceesmf-lifecycle" class="md-nav__link">
+  <a href="#the-cece-lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The CECE/ESMF Lifecycle
+        The CECE Lifecycle
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The CECE&#x2f;ESMF Lifecycle">
+    <nav class="md-nav" aria-label="The CECE Lifecycle">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standalone-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Standalone Mode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coupled-mode-nuopcesmf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coupled Mode (NUOPC/ESMF)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-lifecycle-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Shared Lifecycle Phases
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#1-initialize-phase" class="md-nav__link">
@@ -670,16 +703,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-ceceesmf-lifecycle" class="md-nav__link">
+  <a href="#the-cece-lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The CECE/ESMF Lifecycle
+        The CECE Lifecycle
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The CECE&#x2f;ESMF Lifecycle">
+    <nav class="md-nav" aria-label="The CECE Lifecycle">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standalone-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Standalone Mode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coupled-mode-nuopcesmf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coupled Mode (NUOPC/ESMF)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-lifecycle-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Shared Lifecycle Phases
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#1-initialize-phase" class="md-nav__link">
@@ -762,7 +828,7 @@
 <ul>
 <li><strong>Hierarchy-Based Processing</strong>: Layers are organized by categories and numerical priorities</li>
 <li><strong>Kernel Fusion Optimization</strong>: Single optimized compute kernel per species for maximum performance</li>
-<li><strong>Flexible Operations</strong>: Support for add, multiply, replace, and set operations</li>
+<li><strong>Flexible Operations</strong>: Support for add and replace operations with dynamic field-based scaling</li>
 <li><strong>Advanced Scaling</strong>: Multiple simultaneous scale factors (temporal, spatial, field-based)</li>
 <li><strong>Vertical Distribution</strong>: Multiple algorithms for 2D→3D emission mapping</li>
 <li><strong>Complete Provenance</strong>: Full scientific traceability of emission calculations</li>
@@ -782,30 +848,32 @@
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">mask</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;regional_mask&quot;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="the-ceceesmf-lifecycle">The CECE/ESMF Lifecycle<a class="headerlink" href="#the-ceceesmf-lifecycle" title="Permanent link">&para;</a></h2>
-<p>CECE is implemented as a NUOPC-compliant ESMF component. It follows a standard lifecycle:</p>
+<h2 id="the-cece-lifecycle">The CECE Lifecycle<a class="headerlink" href="#the-cece-lifecycle" title="Permanent link">&para;</a></h2>
+<p>CECE supports two execution modes that share the same core compute engine:</p>
+<h3 id="standalone-mode">Standalone Mode<a class="headerlink" href="#standalone-mode" title="Permanent link">&para;</a></h3>
+<p>The standalone driver (<code>src/main.cpp</code>) manages the full simulation using the HELM library suite. It reads the YAML configuration, sets up the clock (TICK), grid (AXIS NamedGridRegistry), MPI environment (HALO), and orchestrates data I/O through a DAGR pipeline with AMIO reads and AXIS regridding.</p>
+<h3 id="coupled-mode-nuopcesmf">Coupled Mode (NUOPC/ESMF)<a class="headerlink" href="#coupled-mode-nuopcesmf" title="Permanent link">&para;</a></h3>
+<p>A Fortran NUOPC cap wraps CECE as an ESMF Grid Component. The host model provides the clock, grid, and meteorological import fields. CECE advertises its import/export fields following the NUOPC Initialize Phase Definitions (IPDv00).</p>
+<h3 id="shared-lifecycle-phases">Shared Lifecycle Phases<a class="headerlink" href="#shared-lifecycle-phases" title="Permanent link">&para;</a></h3>
+<p>Both modes follow the same three-phase lifecycle:</p>
 <h3 id="1-initialize-phase">1. Initialize Phase<a class="headerlink" href="#1-initialize-phase" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Configuration Parsing</strong>: Reads the YAML configuration and validates the stacking plan.</li>
 <li><strong>Physics Instantiation</strong>: Schemes listed in <code>physics_schemes</code> are created and their <code>Initialize</code> methods are called.</li>
-<li><strong>Field Advertising</strong>: CECE "advertises" the fields it expects to import (e.g., meteorology) and the fields it will export (calculated emissions) to the ESMF framework.</li>
+<li><strong>Clock Construction</strong>: Per-component scheduling intervals are compiled into a CeceClock.</li>
+<li><strong>Stacking Engine Compilation</strong>: Emission layers are pre-compiled and sorted by hierarchy.</li>
 </ul>
 <h3 id="2-run-phase">2. Run Phase<a class="headerlink" href="#2-run-phase" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Dimension Discovery</strong>: CECE dynamically determines the grid dimensions from the ESMF fields at runtime.</li>
-<li><strong>Data Ingestion</strong>:<ul>
-<li>Live meteorological data is pulled from the ESMF Import State.</li>
-<li>Static emission inventories are read from disk using the TIDE engine.</li>
-</ul>
-</li>
+<li><strong>Data Ingestion</strong>: External emission inventories are read from NetCDF via AMIO, regridded by AXIS, and injected into the import state.</li>
 <li><strong>Stacking Execution</strong>: The fused Kokkos kernels are launched to compute the base emissions.</li>
 <li><strong>Physics Execution</strong>: Active physics schemes (like Sea Salt or MEGAN) are executed to modify or generate new emissions.</li>
 <li><strong>Diagnostics</strong>: Intermediate variables are captured by the <code>CeceDiagnosticManager</code> and written to NetCDF files if configured.</li>
-<li><strong>State Synchronization</strong>: Final emissions are deep-copied back to the ESMF Export State.</li>
+<li><strong>State Synchronization</strong>: Final emissions are synced to the host for output or coupled exchange.</li>
 </ul>
 <h3 id="3-finalize-phase">3. Finalize Phase<a class="headerlink" href="#3-finalize-phase" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Resources are released, and Kokkos/TIDE are finalized.</li>
+<li>Resources are released, and Kokkos is finalized.</li>
 </ul>
 <hr />
 <h2 id="performance-portability-with-kokkos">Performance Portability with Kokkos<a class="headerlink" href="#performance-portability-with-kokkos" title="Permanent link">&para;</a></h2>

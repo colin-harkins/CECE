@@ -608,10 +608,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fortran-cap-srccece_capf90" class="md-nav__link">
+  <a href="#fortran-cap-srcdrivernuopccece_capf90" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Fortran cap (<code>src/cece_cap.F90</code>)
+        Fortran cap (<code>src/driver/nuopc/cece_cap.F90</code>)
       </span>
     </span>
   </a>
@@ -660,7 +660,7 @@ This avoids constructing the structured grid at runtime, which can be slow for l
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="c1"># Load pre-generated ESMF GRIDSPEC file (optional)</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">gridspec_file</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/grid.nc&quot;</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="c1"># Grid dimensions — still used for the TIDE regridding mesh</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="c1"># Grid dimensions — still used for the AXIS regridding mesh</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">grid</span><span class="p">:</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">nx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">ny</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1800</span>
@@ -680,7 +680,7 @@ This avoids constructing the structured grid at runtime, which can be slow for l
 <h2 id="gridmesh-selection-logic">Grid/Mesh Selection Logic<a class="headerlink" href="#gridmesh-selection-logic" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>If <code>gridspec_file</code> is set</strong>: Load grid via <code>ESMF_GridCreate(filename=..., fileformat=ESMF_FILEFORMAT_GRIDSPEC)</code>; skip runtime grid generation.
-   A TIDE regridding mesh is still built from <code>driver.grid</code> parameters.</li>
+   An AXIS regridding mesh is still built from <code>driver.grid</code> parameters.</li>
 <li><strong>If <code>gridspec_file</code> is absent/empty</strong>: Generate structured grid from <code>driver.grid.nx</code>/<code>ny</code>/bounds as usual.</li>
 </ol>
 <h2 id="gridspec-file-requirements">GRIDSPEC File Requirements<a class="headerlink" href="#gridspec-file-requirements" title="Permanent link">&para;</a></h2>
@@ -725,18 +725,11 @@ This avoids constructing the structured grid at runtime, which can be slow for l
 <h3 id="c-accessor-srccece_core_field_helperscpp">C accessor (<code>src/cece_core_field_helpers.cpp</code>)<a class="headerlink" href="#c-accessor-srccece_core_field_helperscpp" title="Permanent link">&para;</a></h3>
 <div class="language-cpp highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kt">void</span><span class="w"> </span><span class="nf">cece_core_get_gridspec_file_path</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="w"> </span><span class="n">data_ptr</span><span class="p">,</span><span class="w"> </span><span class="kt">char</span><span class="o">*</span><span class="w"> </span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">*</span><span class="w"> </span><span class="n">path_len</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">*</span><span class="w"> </span><span class="n">rc</span><span class="p">);</span>
 </span></code></pre></div>
-<h3 id="fortran-cap-srccece_capf90">Fortran cap (<code>src/cece_cap.F90</code>)<a class="headerlink" href="#fortran-cap-srccece_capf90" title="Permanent link">&para;</a></h3>
+<h3 id="fortran-cap-srcdrivernuopccece_capf90">Fortran cap (<code>src/driver/nuopc/cece_cap.F90</code>)<a class="headerlink" href="#fortran-cap-srcdrivernuopccece_capf90" title="Permanent link">&para;</a></h3>
 <p>In <code>CECE_InitializeRealize</code> standalone branch:
 1. Call <code>cece_core_get_gridspec_file_path</code> to retrieve the path.
 2. If non-empty, call <code>ESMF_GridCreate(filename=..., fileformat=ESMF_FILEFORMAT_GRIDSPEC)</code>.
-3. Regardless, call <code>CreateMeshFromConfig</code> to build the TIDE regridding mesh.</p>
-<ol>
-<li>Support for multiple mesh file formats (SCRIP, UGRID, etc.)</li>
-<li>Automatic mesh generation from grid specifications</li>
-<li>Mesh refinement and coarsening</li>
-<li>Mesh partitioning for MPI decomposition</li>
-<li>Mesh quality metrics and diagnostics</li>
-</ol>
+3. Regardless, call <code>CreateMeshFromConfig</code> to build the AXIS regridding mesh.</p>
 
 
 

@@ -1172,8 +1172,8 @@
 <li><code>state</code> — <code>CeceState</code> object with import fields populated.</li>
 <li><code>config</code> — Optional configuration override. Uses initialized config if <code>None</code>.</li>
 <li><code>hour</code> — Hour of day (0-23) for temporal scaling.</li>
-<li><code>day_of_week</code> — Day of week (0-6) for temporal scaling.</li>
-<li><code>month</code> — Month (1-12) for temporal scaling.</li>
+<li><code>day_of_week</code> — Day of week (0-6, 0=Sunday) for temporal scaling.</li>
+<li><code>month</code> — Month (0-11, 0=January) for temporal scaling.</li>
 <li>Raises <code>RuntimeError</code> if not initialized or computation fails.</li>
 <li>Raises <code>CeceStateError</code> if state is invalid.</li>
 </ul>
@@ -1504,8 +1504,8 @@
 <h2 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
-<li>CMake 3.16+</li>
-<li>C++17 compiler</li>
+<li>CMake 3.20+</li>
+<li>C++20 compiler</li>
 <li>Python 3.8+ with development headers</li>
 <li>Kokkos (fetched automatically via CMake FetchContent)</li>
 <li>pybind11 v2.12.0 (fetched automatically via CMake FetchContent)</li>

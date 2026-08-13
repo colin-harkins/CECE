@@ -292,6 +292,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Architecture Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standalone-mode-helm-based" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Standalone Mode (HELM-based)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coupled-mode-nuopcesmf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coupled Mode (NUOPC/ESMF)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lifecycle
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -581,6 +620,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Architecture Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standalone-mode-helm-based" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Standalone Mode (HELM-based)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coupled-mode-nuopcesmf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coupled Mode (NUOPC/ESMF)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lifecycle
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -618,30 +696,40 @@
                   
 
 <h1 id="welcome-to-cece">Welcome to CECE<a class="headerlink" href="#welcome-to-cece" title="Permanent link">&para;</a></h1>
-<p><strong>CECE</strong> (Community Emissions Computing Engine) is a high-performance C++ component designed for calculating atmospheric emissions. It leverages the <strong>Kokkos</strong> programming model for performance portability across CPUs and GPUs and integrates seamlessly with the <strong>ESMF</strong> (Earth System Modeling Framework).</p>
+<p><strong>CECE</strong> (Community Emissions Computing Engine) is a high-performance C++ component designed for calculating atmospheric emissions. It leverages the <strong>Kokkos</strong> programming model for performance portability across CPUs and GPUs. CECE can run as a <strong>standalone executable</strong> using the HELM library suite (AMIO, AXIS, TICK, HALO, DAGR) or as a <strong>NUOPC-compliant ESMF component</strong> within a coupled Earth system model.</p>
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Performance Portability</strong>: Write once, run anywhere. CECE uses Kokkos to target NVIDIA GPUs, multi-core CPUs (OpenMP), and more without changing the source code.</li>
-<li><strong>Hybrid Data Ingestion</strong>: Pull live meteorological data (temperature, wind speed, etc.) from ESMF while simultaneously reading static emission inventories from disk using TIDE.</li>
+<li><strong>Hybrid Data Ingestion</strong>: Read static emission inventories from NetCDF via AMIO with AXIS regridding, while also accepting live meteorological fields from a coupled model or configuration-driven inputs.</li>
 <li><strong>Modular Physics Engine</strong>: Easily extend CECE with new physics schemes. Supports both native C++ (Kokkos) and legacy Fortran plugins.</li>
 <li><strong>Flexible Stacking Engine</strong>: Combine multiple emission layers using prioritized categories and hierarchy levels. Apply geographical masks and multiple scale factors per layer.</li>
 <li><strong>Built-in Diagnostics</strong>: Integrated diagnostic manager for registering and writing intermediate variables to NetCDF files.</li>
 <li><strong>Python Bindings</strong>: High-level Python API via pybind11 with zero-copy NumPy data transfer, automatic GIL release during computation, and a clean exception hierarchy.</li>
 </ul>
 <h2 id="architecture-overview">Architecture Overview<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h2>
-<p>CECE operates as an ESMF Grid Component with a sophisticated <strong>Stacking Engine</strong> at its core. The Stacking Engine combines multiple emission data layers using hierarchical processing, kernel fusion optimization, and advanced temporal/spatial scaling. It follows the standard NUOPC/ESMF lifecycle:</p>
+<p>CECE supports two execution modes:</p>
+<h3 id="standalone-mode-helm-based">Standalone Mode (HELM-based)<a class="headerlink" href="#standalone-mode-helm-based" title="Permanent link">&para;</a></h3>
+<p>The standalone driver (<code>src/main.cpp</code>) orchestrates the full simulation lifecycle using HELM libraries:
+- <strong>TICK</strong> — Gregorian calendar and simulation clock
+- <strong>HALO</strong> — MPI communicator management
+- <strong>AXIS</strong> — Named grid generation and coordinate handling
+- <strong>AMIO</strong> — Asynchronous NetCDF I/O with prefetch and staging
+- <strong>DAGR</strong> — Directed acyclic graph pipeline orchestration</p>
+<h3 id="coupled-mode-nuopcesmf">Coupled Mode (NUOPC/ESMF)<a class="headerlink" href="#coupled-mode-nuopcesmf" title="Permanent link">&para;</a></h3>
+<p>A Fortran NUOPC cap (<code>src/driver/nuopc/cece_cap.F90</code>) wraps CECE as an ESMF Grid Component for use in coupled Earth system models. In this mode, the host model provides the clock, grid, and meteorological import fields.</p>
+<h3 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h3>
+<p>Both modes follow the same core lifecycle:</p>
 <ol>
-<li><strong>Initialize</strong>: Parses YAML configuration, instantiates physics schemes, and initializes TIDE.</li>
+<li><strong>Initialize</strong>: Parses YAML configuration, instantiates physics schemes, and initializes the data ingestion pipeline.</li>
 <li><strong>Run</strong>:<ul>
-<li>Discovers grid dimensions from ESMF fields.</li>
-<li>Ingests data from ESMF and TIDE data streams.</li>
+<li>Ingests data from AMIO data streams with AXIS regridding.</li>
 <li>Executes the Stacking Engine with fused kernel optimization.</li>
 <li>Runs active Physics Extensions (MEGAN, sea salt, dust, etc.).</li>
-<li>Writes diagnostics to disk.</li>
-<li>Synchronizes computed emissions back to the ESMF host state.</li>
+<li>Writes output and diagnostics to disk.</li>
+<li>Synchronizes computed emissions back to the host state.</li>
 </ul>
 </li>
-<li><strong>Finalize</strong>: Cleans up resources and finalizes Kokkos/TIDE.</li>
+<li><strong>Finalize</strong>: Cleans up resources and finalizes Kokkos.</li>
 </ol>
 <p>For comprehensive technical details about the Stacking Engine algorithms and performance optimizations, see the <a href="stacking_engine/">Stacking Engine Documentation</a>.</p>
 <h2 id="get-started">Get Started<a class="headerlink" href="#get-started" title="Permanent link">&para;</a></h2>
