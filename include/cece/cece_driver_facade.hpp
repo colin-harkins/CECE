@@ -26,7 +26,6 @@ struct StreamVarConfig {
     bool data_model_explicit = false;
     int amio_threads = 1;
 };
-
 class CeceDriverOrchestrator {
    public:
     CeceDriverOrchestrator(const std::string& config_file, int nx, int ny, int nz, const double* lon_coords, int lon_len, const double* lat_coords,
@@ -51,7 +50,6 @@ class CeceDriverOrchestrator {
 
     // Cached per-variable stream configuration (parsed once at construction)
     std::unordered_map<std::string, StreamVarConfig> stream_var_configs_;
-
     // Cached regridding plans keyed by model variable name. The expensive
     // interpolation weights are built once (per rank-local destination band)
     // and reused for every timestep.

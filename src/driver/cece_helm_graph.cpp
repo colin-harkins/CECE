@@ -15,7 +15,6 @@ void CompileHelmGraph(const std::string& config_file, std::unique_ptr<dagr::Grap
     if (!f.good()) {
         throw std::runtime_error("File not found: " + config_file);
     }
-
     // Build the Pipeline_Config dynamically from standard YAML
     dagr::Pipeline_Config pc;
     pc.max_concurrency = 4;

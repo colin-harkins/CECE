@@ -566,17 +566,17 @@ if(ESMF_FOUND)
   endif()
 endif()
 
-# C++ Tide Unit Tests
-add_executable(test_tide_cpp tests/test_tide_cpp.cpp)
+# C++ HELM Unit Tests
+add_executable(test_helm_cpp tests/test_helm_cpp.cpp)
 target_link_libraries(
-  test_tide_cpp
+  test_helm_cpp
   PRIVATE cece HELM::DAGR HELM::HALO HELM::TICK HELM::SPAN GTest::gtest
 )
-target_compile_definitions(test_tide_cpp PRIVATE CECE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(test_helm_cpp PRIVATE CECE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Parity Regression Tests
-add_executable(test_tide_c_parity tests/test_tide_c_parity.cpp)
-target_link_libraries(test_tide_c_parity PRIVATE cece GTest::gtest_main)
+add_executable(test_regression_parity tests/test_regression_parity.cpp)
+target_link_libraries(test_regression_parity PRIVATE cece GTest::gtest_main)
 
 # Standalone NUOPC driver
 if(ESMF_FOUND)
@@ -588,32 +588,67 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   # Use a venv inside the build directory so pip installs work even in
   # read-only container environments (e.g. Singularity).
-  set(CECE_PYTHON_VENV_DIR "${CMAKE_BINARY_DIR}/python_venv")
+  set(CECE_PYTHON_DIR "${CMAKE_BINARY_DIR}/python")
+  set(CECE_PYTHON_VENV_DIR "${CECE_PYTHON_DIR}/venv")
+  set(CECE_PYTHON_TMP_DIR "${CECE_PYTHON_DIR}/tmp")
+  set(CECE_PYTHON_CACHE_DIR "${CECE_PYTHON_DIR}/cache")
+
+  file(MAKE_DIRECTORY "${CECE_PYTHON_DIR}")
+  file(MAKE_DIRECTORY "${CECE_PYTHON_TMP_DIR}")
+  file(MAKE_DIRECTORY "${CECE_PYTHON_CACHE_DIR}")
+
   if(WIN32)
     set(VENV_PYTHON "${CECE_PYTHON_VENV_DIR}/Scripts/python.exe")
   else()
     set(VENV_PYTHON "${CECE_PYTHON_VENV_DIR}/bin/python")
   endif()
 
+  # Keep pip and temp files inside the build tree for containerized CI runs.
+  set(
+    CECE_PIP_TEST_ENV
+    "PIP_CACHE_DIR=${CECE_PYTHON_CACHE_DIR}"
+    "PIP_DISABLE_PIP_VERSION_CHECK=1"
+    "HOME=${CECE_PYTHON_DIR}"
+    "TMPDIR=${CECE_PYTHON_TMP_DIR}"
+    "PYTHONNOUSERSITE=1"
+  )
+  if(WIN32)
+    list(
+      APPEND CECE_PIP_TEST_ENV
+      "TMP=${CECE_PYTHON_TMP_DIR}"
+      "TEMP=${CECE_PYTHON_TMP_DIR}"
+      "USERPROFILE=${CECE_PYTHON_DIR}"
+    )
+  endif()
+
   add_test(NAME create_python_venv COMMAND ${Python3_EXECUTABLE} -m venv ${CECE_PYTHON_VENV_DIR})
   add_test(
+    NAME ensure_pip_in_venv
+    COMMAND ${VENV_PYTHON} -I -m ensurepip --upgrade
+  )
+  add_test(
     NAME upgrade_pip_in_venv
-    COMMAND ${VENV_PYTHON} -m pip install --upgrade pip
+    COMMAND ${VENV_PYTHON} -I -m pip install --upgrade pip
   )
   set_tests_properties(
     create_python_venv
+    ensure_pip_in_venv
     upgrade_pip_in_venv
-    PROPERTIES FIXTURES_SETUP "python_venv_ready"
+    PROPERTIES FIXTURES_SETUP "python_venv_ready" ENVIRONMENT "${CECE_PIP_TEST_ENV}"
   )
-  set_tests_properties(upgrade_pip_in_venv PROPERTIES DEPENDS create_python_venv)
+  set_tests_properties(ensure_pip_in_venv PROPERTIES DEPENDS create_python_venv)
+  set_tests_properties(upgrade_pip_in_venv PROPERTIES DEPENDS ensure_pip_in_venv)
 
   add_test(
     NAME install_python_deps
-    COMMAND ${VENV_PYTHON} -m pip install pytest PyYAML matplotlib numpy --ignore-installed
+    COMMAND ${VENV_PYTHON} -I -m pip install pytest PyYAML matplotlib numpy
   )
   set_tests_properties(
     install_python_deps
-    PROPERTIES FIXTURES_SETUP "python_deps_installed" FIXTURES_REQUIRED "python_venv_ready"
+    PROPERTIES
+      FIXTURES_SETUP "python_deps_installed"
+      FIXTURES_REQUIRED "python_venv_ready"
+      ENVIRONMENT "${CECE_PIP_TEST_ENV}"
   )
 
   add_test(
@@ -728,8 +763,8 @@ gtest_discover_tests(test_megan3)
 gtest_discover_tests(test_cece_clock_properties)
 gtest_discover_tests(test_cece_clock_run_loop)
 gtest_discover_tests(test_bdsnp)
-gtest_discover_tests(test_tide_cpp PROPERTIES ENVIRONMENT "FI_PROVIDER=tcp;I_MPI_FABRICS=shm")
-gtest_discover_tests(test_tide_c_parity)
+gtest_discover_tests(test_helm_cpp PROPERTIES ENVIRONMENT "FI_PROVIDER=tcp;I_MPI_FABRICS=shm")
+gtest_discover_tests(test_regression_parity)
 
 if(ESMF_FOUND)
   gtest_discover_tests(
@@ -884,5 +919,6 @@ target_link_libraries(
     HELM::BLEND
     Kokkos::kokkos
     conf
+    yaml-cpp
     MPI::MPI_CXX
 )
