@@ -43,6 +43,9 @@ struct DeviceLayer {
     /// 1.0 for "replace", 0.0 for "add".
     double replace_flag;
 
+    /// category_id is an integer representation of the string category, assigned during pre-compilation.
+    int category_id;
+    
     // Vertical distribution
     int vdist_method;  ///< 0:single, 1:range, 2:pressure, 3:height, 4:pbl
     int vdist_layer_start;

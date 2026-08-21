@@ -269,13 +269,11 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     for (int i = 0; i < nx; ++i) {
         for (int j = 0; j < ny; ++j) {
             // GLOBAL Hierarchy check:
-            // 1. BG (Hier 1, Add) -> Total = 1.0
-            // 2. Cat2 (Hier 1, Add) -> Total = 11.0 (since they have same hierarchy,
-            // order in list matters, but both are add)
-            // 3. Overlay (Hier 10, Replace) -> Total = (11.0 * (1-1)) + (2.0 * 1.5)
-            // = 3.0 Wait, if Overlay has Hier 10 and Replace, it should replace the
-            // SUM of everything before it.
-            EXPECT_DOUBLE_EQ(result(i, j, 0), 3.0);
+            // 1. BG (Cat1, Hier 1, Add) -> Total = 1.0
+            // 2. Overlay (Cat1, Hier 10, Replace) -> Total = (2.0 * 1.5) = 3.0 (This replaces the previous total, only of the same category)
+            // 3. Cat2 (Cat 2, Hier 1, Add) -> Total = 3.0 + 10.0 = 13.0 (Cat 2 is added to Cat 1 )
+            // = 13.0
+            EXPECT_DOUBLE_EQ(result(i, j, 0), 13.0);
         }
     }
 }
