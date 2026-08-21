@@ -320,7 +320,7 @@ void StackingEngine::AddSpecies(const std::string& species_name) {
  *   are computed on the host in UpdateTemporalScales() and transferred to device via deep_copy.
  *   This avoids redundant calculations inside the kernel.
  * - **Integer Category Mapping**: Expensive string-based categories are converted to contiguous
- *   integer IDs during the host pre-compilation step. The layers are sorted so the GPU kernel 
+ *   integer IDs during the host pre-compilation step. The layers are sorted so the GPU kernel
  *   only needs to track when this simple integer ID changes to flush category subtotals.
  * - **POD DeviceLayer Structure**: Uses Plain Old Data (POD) structures with Unmanaged Kokkos::View
  *   handles for efficient device transfer. The entire layer metadata is deep_copied once per
