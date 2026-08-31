@@ -1,4 +1,4 @@
-/**
+/*
  * @file cece_stacking_engine.cpp
  * @brief Implementation of the CECE emission stacking and processing engine.
  *
@@ -98,7 +98,8 @@ void StackingEngine::PreCompile() {
                 current_cat = sorted_layers[i].category;
                 current_cat_id++;
             }
-            spec.host_layers(i).category_id = current_cat_id;
+            // record the integer id in the compiled-layer metadata, not directly into the host mirror
+            spec.layers[i].category_id = current_cat_id;
         }
 
         m_compiled.push_back(std::move(spec));
@@ -171,6 +172,9 @@ void StackingEngine::BindFields(CompiledSpecies& spec, FieldResolver& resolver, 
                 dev.masks[dev.num_masks++] = m_view;
             }
         }
+
+        // Ensure the category id is set on the host mirror at bind time
+        dev.category_id = spec.layers[i].category_id;
     }
     spec.fields_bound = true;
 }
@@ -302,7 +306,8 @@ void StackingEngine::AddSpecies(const std::string& species_name) {
             current_cat = sorted_layers[i].category;
             current_cat_id++;
         }
-        spec.host_layers(i).category_id = current_cat_id;
+        // record the integer id on the compiled layer
+        spec.layers[i].category_id = current_cat_id;
     }
 
     m_compiled.push_back(std::move(spec));
