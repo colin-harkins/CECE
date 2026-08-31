@@ -123,6 +123,9 @@ class StackingEngine {
         double vdist_p_end;
         double vdist_h_start;
         double vdist_h_end;
+
+        // Integer category id computed at precompile time and used by device code
+        int category_id = 0;
     };
 
     struct CompiledSpecies {
