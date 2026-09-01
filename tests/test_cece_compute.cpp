@@ -208,72 +208,130 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     int ny = 4;
     int nz = 1;
 
-    // Background (Cat 1, Hier 1)
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> bg_data("bg", nx, ny, nz);
-    Kokkos::deep_copy(bg_data, 1.0);
+    // We will test 2 independent Categories (Cat1 and Cat2).
+    // Cat1 checks replacement with scaling and masks, as well as ignoring the replace operation of the lowest hierarchy in the category.
+    // Cat2 checks independent accumulation and masked replacement in a different sector.
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_mid_hier("c1_mid_hier", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_low_hier("c1_low_hier", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_high_hier("c1_high_hier", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c2_base("c2_base", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c2_high_hier("c2_high_hier", nx, ny, nz);
 
-    // Overlay (Cat 1, Hier 10, Replace)
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> overlay_data("overlay", nx, ny, nz);
-    Kokkos::deep_copy(overlay_data, 2.0);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> left_mask("left_mask", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> bottom_mask("bottom_mask", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> sf_data("sf_data", nx, ny, nz);
 
-    // Another category (Cat 2, Hier 1)
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> cat2_data("cat2", nx, ny, nz);
-    Kokkos::deep_copy(cat2_data, 10.0);
+    // Set field values
+    Kokkos::deep_copy(c1_mid_hier, 10.0);
+    Kokkos::deep_copy(c1_low_hier, 100.0);
+    Kokkos::deep_copy(c1_high_hier, 50.0);
+    
+    Kokkos::deep_copy(c2_base, 1000.0);
+    Kokkos::deep_copy(c2_high_hier, 5000.0);
+    
+    Kokkos::deep_copy(sf_data, 2.0); // Scale factor multiplier
 
-    // Scale field
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> sf_data("sf", nx, ny, nz);
-    Kokkos::deep_copy(sf_data, 1.5);
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            left_mask(i, j, 0) = (i < nx / 2) ? 1.0 : 0.0;
+            bottom_mask(i, j, 0) = (j < ny / 2) ? 1.0 : 0.0;
+        }
+    }
 
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> export_data("export", nx, ny, nz);
     Kokkos::deep_copy(export_data, 0.0);
 
     MockFieldResolver resolver;
-    resolver.AddField("bg", nx, ny, nz);
-    resolver.SetFieldData("bg", bg_data);
-    resolver.AddField("overlay", nx, ny, nz);
-    resolver.SetFieldData("overlay", overlay_data);
-    resolver.AddField("cat2", nx, ny, nz);
-    resolver.SetFieldData("cat2", cat2_data);
-    resolver.AddField("sf", nx, ny, nz);
-    resolver.SetFieldData("sf", sf_data);
-    resolver.AddField("nox", nx, ny, nz);
-    resolver.SetFieldData("nox", export_data);
+    resolver.AddField("c1_mid_hier", nx, ny, nz); resolver.SetFieldData("c1_mid_hier", c1_mid_hier);
+    resolver.AddField("c1_low_hier", nx, ny, nz); resolver.SetFieldData("c1_low_hier", c1_low_hier);
+    resolver.AddField("c1_high_hier", nx, ny, nz); resolver.SetFieldData("c1_high_hier", c1_high_hier);
+    resolver.AddField("c2_base", nx, ny, nz); resolver.SetFieldData("c2_base", c2_base);
+    resolver.AddField("c2_high_hier", nx, ny, nz); resolver.SetFieldData("c2_high_hier", c2_high_hier);
+    resolver.AddField("left_mask", nx, ny, nz); resolver.SetFieldData("left_mask", left_mask);
+    resolver.AddField("bottom_mask", nx, ny, nz); resolver.SetFieldData("bottom_mask", bottom_mask);
+    resolver.AddField("sf_data", nx, ny, nz); resolver.SetFieldData("sf_data", sf_data);
+    resolver.AddField("nox", nx, ny, nz); resolver.SetFieldData("nox", export_data);
 
     CeceConfig config;
 
+    // Cat 1, Mid Hierarchy (Hier 10, Add)
     EmissionLayer l1;
     l1.operation = "add";
-    l1.field_name = "bg";
-    l1.category = "1";
-    l1.hierarchy = 1;
+    l1.field_name = "c1_mid_hier";
+    l1.category = "Cat1";
+    l1.hierarchy = 10;
 
+    // Cat 1, Lower Hierarchy (Hier 5, Replace) 
+    // -> This should be added to the base and not replace anything because it is the lowest hierarchy in the category.
     EmissionLayer l2;
     l2.operation = "replace";
-    l2.field_name = "overlay";
-    l2.category = "1";
-    l2.hierarchy = 10;
-    l2.scale_fields = {"sf"};
+    l2.field_name = "c1_low_hier";
+    l2.category = "Cat1";
+    l2.hierarchy = 5;
 
+    // Cat 1, Higher Hierarchy (Hier 20, Replace), Left Mask, Scaled
+    // -> Replaces base on the left half, scaled by 2.0.
     EmissionLayer l3;
-    l3.operation = "add";
-    l3.field_name = "cat2";
-    l3.category = "2";
-    l3.hierarchy = 1;
+    l3.operation = "replace";
+    l3.field_name = "c1_high_hier";
+    l3.category = "Cat1";
+    l3.hierarchy = 20;
+    l3.masks = {"left_mask"};
+    l3.scale_fields = {"sf_data"};
 
-    // Out of order in vector to test sorting
-    config.species_layers["nox"] = {l2, l1, l3};
+    // Cat 2, Base (Hier 10, Add)
+    EmissionLayer l4;
+    l4.operation = "add";
+    l4.field_name = "c2_base";
+    l4.category = "Cat2";
+    l4.hierarchy = 10;
+
+    // Cat 2, Higher Hierarchy (Hier 30, Replace), Bottom Mask
+    // -> Replaces base on the bottom half.
+    EmissionLayer l5;
+    l5.operation = "replace";
+    l5.field_name = "c2_high_hier";
+    l5.category = "Cat2";
+    l5.hierarchy = 30;
+    l5.masks = {"bottom_mask"};
+
+    // Input layers out of logical order to ensure internal sorting works correctly
+    config.species_layers["nox"] = {l3, l1, l5, l4, l2};
 
     ComputeEmissions(config, resolver, nx, ny, nz);
 
     auto result = resolver.GetFieldData("nox");
     for (int i = 0; i < nx; ++i) {
         for (int j = 0; j < ny; ++j) {
-            // GLOBAL Hierarchy check:
-            // 1. BG (Cat1, Hier 1, Add) -> Total = 1.0
-            // 2. Overlay (Cat1, Hier 10, Replace) -> Total = (2.0 * 1.5) = 3.0 (This replaces the previous total, only of the same category)
-            // 3. Cat2 (Cat 2, Hier 1, Add) -> Total = 3.0 + 10.0 = 13.0 (Cat 2 is added to Cat 1 )
-            // = 13.0
-            EXPECT_DOUBLE_EQ(result(i, j, 0), 13.0);
+            double expected = 0.0;
+
+            // --- Cat 1 Evaluation ---
+            if (i < 2) {
+                // Left half: masked high-hierarchy replace applies. 
+                // Values = 50.0 (base) * 2.0 (scale field) = 100.0
+                expected += 100.0; 
+            } else {
+                // Right half: mask doesn't apply, so fall uses the accumulated value for cat 1 mid hier and cat 1 low hier.
+                expected += 110.0; 
+            }
+
+            // --- Cat 2 Evaluation ---
+            if (j < 2) {
+                // Bottom half: masked high-hierarchy replace applies.
+                expected += 5000.0;
+            } else {
+                // Top half: mask doesn't apply, fall back to base layer (1000.0)
+                expected += 1000.0;
+            }
+
+            // Final result should be the following array
+            //      1100.0, 1100.0, 1110.0, 1110.0
+            //      1100.0, 1100.0, 1110.0, 1110.0
+            //      5100.0, 5100.0, 5110.0, 5110.0
+            //      5100.0, 5100.0, 5110.0, 5110.0
+
+            // Verify final summed output of both categories
+            EXPECT_DOUBLE_EQ(result(i, j, 0), expected);
         }
     }
 }
