@@ -225,10 +225,10 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     Kokkos::deep_copy(c1_mid_hier, 10.0);
     Kokkos::deep_copy(c1_low_hier, 100.0);
     Kokkos::deep_copy(c1_high_hier, 50.0);
-    
+
     Kokkos::deep_copy(c2_base, 1000.0);
     Kokkos::deep_copy(c2_high_hier, 5000.0);
-    
+
     Kokkos::deep_copy(sf_data, 2.0); // Scale factor multiplier
 
     for (int i = 0; i < nx; ++i) {
@@ -242,15 +242,24 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     Kokkos::deep_copy(export_data, 0.0);
 
     MockFieldResolver resolver;
-    resolver.AddField("c1_mid_hier", nx, ny, nz); resolver.SetFieldData("c1_mid_hier", c1_mid_hier);
-    resolver.AddField("c1_low_hier", nx, ny, nz); resolver.SetFieldData("c1_low_hier", c1_low_hier);
-    resolver.AddField("c1_high_hier", nx, ny, nz); resolver.SetFieldData("c1_high_hier", c1_high_hier);
-    resolver.AddField("c2_base", nx, ny, nz); resolver.SetFieldData("c2_base", c2_base);
-    resolver.AddField("c2_high_hier", nx, ny, nz); resolver.SetFieldData("c2_high_hier", c2_high_hier);
-    resolver.AddField("left_mask", nx, ny, nz); resolver.SetFieldData("left_mask", left_mask);
-    resolver.AddField("bottom_mask", nx, ny, nz); resolver.SetFieldData("bottom_mask", bottom_mask);
-    resolver.AddField("sf_data", nx, ny, nz); resolver.SetFieldData("sf_data", sf_data);
-    resolver.AddField("nox", nx, ny, nz); resolver.SetFieldData("nox", export_data);
+    resolver.AddField("c1_mid_hier", nx, ny, nz);
+    resolver.SetFieldData("c1_mid_hier", c1_mid_hier);
+    resolver.AddField("c1_low_hier", nx, ny, nz);
+    resolver.SetFieldData("c1_low_hier", c1_low_hier);
+    resolver.AddField("c1_high_hier", nx, ny, nz);
+    resolver.SetFieldData("c1_high_hier", c1_high_hier);
+    resolver.AddField("c2_base", nx, ny, nz);
+    resolver.SetFieldData("c2_base", c2_base);
+    resolver.AddField("c2_high_hier", nx, ny, nz);
+    resolver.SetFieldData("c2_high_hier", c2_high_hier);
+    resolver.AddField("left_mask", nx, ny, nz);
+    resolver.SetFieldData("left_mask", left_mask);
+    resolver.AddField("bottom_mask", nx, ny, nz);
+    resolver.SetFieldData("bottom_mask", bottom_mask);
+    resolver.AddField("sf_data", nx, ny, nz);
+    resolver.SetFieldData("sf_data", sf_data);
+    resolver.AddField("nox", nx, ny, nz);
+    resolver.SetFieldData("nox", export_data);
 
     CeceConfig config;
 
@@ -261,7 +270,7 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     l1.category = "Cat1";
     l1.hierarchy = 10;
 
-    // Cat 1, Lower Hierarchy (Hier 5, Replace) 
+    // Cat 1, Lower Hierarchy (Hier 5, Replace)
     // -> This should be added to the base and not replace anything because it is the lowest hierarchy in the category.
     EmissionLayer l2;
     l2.operation = "replace";
@@ -307,12 +316,12 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
 
             // --- Cat 1 Evaluation ---
             if (i < 2) {
-                // Left half: masked high-hierarchy replace applies. 
+                // Left half: masked high-hierarchy replace applies.
                 // Values = 50.0 (base) * 2.0 (scale field) = 100.0
-                expected += 100.0; 
+                expected += 100.0;
             } else {
                 // Right half: mask doesn't apply, so fall uses the accumulated value for cat 1 mid hier and cat 1 low hier.
-                expected += 110.0; 
+                expected += 110.0;
             }
 
             // --- Cat 2 Evaluation ---
