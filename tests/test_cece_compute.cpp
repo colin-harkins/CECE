@@ -229,7 +229,8 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     Kokkos::deep_copy(c2_base, 1000.0);
     Kokkos::deep_copy(c2_high_hier, 5000.0);
 
-    Kokkos::deep_copy(sf_data, 2.0); // Scale factor multiplier
+    // Scale factor multiplier
+    Kokkos::deep_copy(sf_data, 2.0);
 
     for (int i = 0; i < nx; ++i) {
         for (int j = 0; j < ny; ++j) {
