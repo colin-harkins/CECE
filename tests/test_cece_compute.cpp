@@ -334,7 +334,8 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
                 expected += 1000.0;
             }
 
-            // Final result, shown visually with cartesian indexing (rows are j=0..3, counting up from the bottom; columns are i=0..3, counting up from the left):
+            // Final result, shown visually with cartesian indexing (rows are j=0..3, counting up from the bottom; columns are i=0..3,
+            // counting up from the left):
             //      1100.0, 1100.0, 1110.0, 1110.0
             //      1100.0, 1100.0, 1110.0, 1110.0
             //      5100.0, 5100.0, 5110.0, 5110.0
