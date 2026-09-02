@@ -1,4 +1,4 @@
-/*
+/**
  * @file cece_stacking_engine.cpp
  * @brief Implementation of the CECE emission stacking and processing engine.
  *
