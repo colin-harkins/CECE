@@ -321,7 +321,7 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
                 // Values = 50.0 (base) * 2.0 (scale field) = 100.0
                 expected += 100.0;
             } else {
-                // Right half: mask doesn't apply, so fall uses the accumulated value for cat 1 mid hier and cat 1 low hier.
+                // Right half: mask doesn't apply, so fallback uses the accumulated value for cat 1 mid hier and cat 1 low hier.
                 expected += 110.0;
             }
 
@@ -334,7 +334,7 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
                 expected += 1000.0;
             }
 
-            // Final result should be the following array
+            // Final result, shown visually with cartesian indexing (rows are j=0..3, counting up from the bottom; columns are i=0..3, counting up from the left):
             //      1100.0, 1100.0, 1110.0, 1110.0
             //      1100.0, 1100.0, 1110.0, 1110.0
             //      5100.0, 5100.0, 5110.0, 5110.0
