@@ -55,7 +55,7 @@ void StackingEngine::PreCompile() {
         // Sort a copy of the raw layers by category first, then hierarchy
         // This ensures contiguous evaluation of categories in the device kernel.
         auto sorted_layers = layers;
-        std::sort(sorted_layers.begin(), sorted_layers.end(), [](const auto& a, const auto& b) {
+        std::stable_sort(sorted_layers.begin(), sorted_layers.end(), [](const auto& a, const auto& b) {
             if (a.category != b.category) {
                 return a.category < b.category;
             }
