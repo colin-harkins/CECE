@@ -102,12 +102,9 @@ message(STATUS "  HIP: ${Kokkos_ENABLE_HIP}")
 FetchContent_Declare(kokkos GIT_REPOSITORY https://github.com/kokkos/kokkos.git GIT_TAG 5.1.1)
 FetchContent_MakeAvailable(kokkos)
 
-# YAML-CPP
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
   set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
 endif()
-FetchContent_Declare(yaml-cpp GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git GIT_TAG 0.8.0)
-FetchContent_MakeAvailable(yaml-cpp)
 
 # GTest
 FetchContent_Declare(
@@ -370,9 +367,9 @@ target_include_directories(
 target_compile_definitions(cece_core PUBLIC MPICH_SKIP_MPICXX OMPI_SKIP_MPICXX)
 
 if(ESMF_FOUND)
-  target_link_libraries(cece_core PUBLIC Kokkos::kokkos ESMF::ESMF yaml-cpp)
+  target_link_libraries(cece_core PUBLIC Kokkos::kokkos ESMF::ESMF conf)
 else()
-  target_link_libraries(cece_core PUBLIC Kokkos::kokkos yaml-cpp)
+  target_link_libraries(cece_core PUBLIC Kokkos::kokkos conf)
 endif()
 
 target_link_libraries(cece_core PUBLIC HELM::LOGS)
@@ -412,7 +409,7 @@ target_include_directories(
 
 target_link_libraries(
   cece_driver
-  PUBLIC cece_core amio_core HELM::SPAN blend axis HELM::DAGR HELM::HALO HELM::TICK
+  PUBLIC cece_core amio_core HELM::SPAN blend axis HELM::DAGR HELM::HALO HELM::TICK conf
 )
 
 # --- Backward-Compatibility target aliases ---
@@ -934,6 +931,6 @@ target_link_libraries(
     HELM::AXIS
     HELM::BLEND
     Kokkos::kokkos
-    yaml-cpp
+    conf
     MPI::MPI_CXX
 )
