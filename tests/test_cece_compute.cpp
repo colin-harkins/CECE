@@ -214,20 +214,28 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_mid_hier("c1_mid_hier", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_low_hier("c1_low_hier", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_high_hier("c1_high_hier", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c1_highest_hier("c1_highest_hier", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c2_base("c2_base", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c2_high_hier("c2_high_hier", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c3_base("c3_base", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> c3_high_hier("c3_high_hier", nx, ny, nz);
 
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> left_mask("left_mask", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> bottom_mask("bottom_mask", nx, ny, nz);
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> very_bottom_mask("bottom_mask", nx, ny, nz);
     Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> sf_data("sf_data", nx, ny, nz);
 
     // Set field values
     Kokkos::deep_copy(c1_mid_hier, 10.0);
     Kokkos::deep_copy(c1_low_hier, 100.0);
     Kokkos::deep_copy(c1_high_hier, 50.0);
+    Kokkos::deep_copy(c1_highest_hier, 150.0);
 
     Kokkos::deep_copy(c2_base, 1000.0);
     Kokkos::deep_copy(c2_high_hier, 5000.0);
+
+    Kokkos::deep_copy(c3_base, 1.0);
+    Kokkos::deep_copy(c3_high_hier, 5.0);
 
     // Scale factor multiplier
     Kokkos::deep_copy(sf_data, 2.0);
@@ -236,6 +244,7 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
         for (int j = 0; j < ny; ++j) {
             left_mask(i, j, 0) = (i < nx / 2) ? 1.0 : 0.0;
             bottom_mask(i, j, 0) = (j < ny / 2) ? 1.0 : 0.0;
+            very_bottom_mask(i, j, 0) = (j < 1) ? 1.0 : 0.0;
         }
     }
 
@@ -249,14 +258,22 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     resolver.SetFieldData("c1_low_hier", c1_low_hier);
     resolver.AddField("c1_high_hier", nx, ny, nz);
     resolver.SetFieldData("c1_high_hier", c1_high_hier);
+    resolver.AddField("c1_highest_hier", nx, ny, nz);
+    resolver.SetFieldData("c1_highest_hier", c1_highest_hier);
     resolver.AddField("c2_base", nx, ny, nz);
     resolver.SetFieldData("c2_base", c2_base);
     resolver.AddField("c2_high_hier", nx, ny, nz);
     resolver.SetFieldData("c2_high_hier", c2_high_hier);
+    resolver.AddField("c3_base", nx, ny, nz);
+    resolver.SetFieldData("c3_base", c3_base);
+    resolver.AddField("c3_high_hier", nx, ny, nz);
+    resolver.SetFieldData("c3_high_hier", c3_high_hier);
     resolver.AddField("left_mask", nx, ny, nz);
     resolver.SetFieldData("left_mask", left_mask);
     resolver.AddField("bottom_mask", nx, ny, nz);
     resolver.SetFieldData("bottom_mask", bottom_mask);
+    resolver.AddField("very_bottom_mask", nx, ny, nz);
+    resolver.SetFieldData("very_bottom_mask", very_bottom_mask);
     resolver.AddField("sf_data", nx, ny, nz);
     resolver.SetFieldData("sf_data", sf_data);
     resolver.AddField("nox", nx, ny, nz);
@@ -289,24 +306,48 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     l3.masks = {"left_mask"};
     l3.scale_fields = {"sf_data"};
 
-    // Cat 2, Base (Hier 10, Add)
+    // Cat 1, Higher Hierarchy (Hier 30)
+    // -> Adds to lower hierarchies of Cat 1
     EmissionLayer l4;
     l4.operation = "add";
-    l4.field_name = "c2_base";
-    l4.category = "Cat2";
-    l4.hierarchy = 10;
+    l4.field_name = "c1_highest_hier";
+    l4.category = "Cat1";
+    l4.hierarchy = 30;
+
+    // Cat 2, Base (Hier 10, Add)
+    EmissionLayer l5;
+    l5.operation = "add";
+    l5.field_name = "c2_base";
+    l5.category = "Cat2";
+    l5.hierarchy = 10;
 
     // Cat 2, Higher Hierarchy (Hier 30, Replace), Bottom Mask
     // -> Replaces base on the bottom half.
-    EmissionLayer l5;
-    l5.operation = "replace";
-    l5.field_name = "c2_high_hier";
-    l5.category = "Cat2";
-    l5.hierarchy = 30;
-    l5.masks = {"bottom_mask"};
+    EmissionLayer l6;
+    l6.operation = "replace";
+    l6.field_name = "c2_high_hier";
+    l6.category = "Cat2";
+    l6.hierarchy = 30;
+    l6.masks = {"bottom_mask"};
+
+    // Cat 3, Base (Hier 4, add)
+    EmissionLayer l7;
+    l7.operation = "add";
+    l7.field_name = "c3_base";
+    l7.category = "Cat3";
+    l7.hierarchy = 5;
+
+    // Cat 3, Higher Hierarchy (Hier 10, Replace), very bottom mask
+    EmissionLayer l8;
+    l8.operation = "replace";
+    l8.field_name = "c3_high_hier";
+    l8.category = "Cat3";
+    l8.hierarchy = 10;
+    l8.masks = {"very_bottom_mask"};
+
 
     // Input layers out of logical order to ensure internal sorting works correctly
-    config.species_layers["nox"] = {l3, l1, l5, l4, l2};
+    config.species_layers["nox"] = {l7, l3, l1, l5, l8, l4, l2, l6};
 
     ComputeEmissions(config, resolver, nx, ny, nz);
 
@@ -319,10 +360,12 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
             if (i < 2) {
                 // Left half: masked high-hierarchy replace applies.
                 // Values = 50.0 (base) * 2.0 (scale field) = 100.0
-                expected += 100.0;
+                // Add 150 for highest hierarchy.
+                expected += 100.0+150.0;
             } else {
-                // Right half: mask doesn't apply, so fallback uses the accumulated value for cat 1 mid hier and cat 1 low hier.
-                expected += 110.0;
+                // Right half: mask doesn't apply, so fallback uses the accumulated value
+                // for cat 1 mid hier and cat 1 low hier. Add 150.0 for highest hierarchy
+                expected += 110.0+150.0;
             }
 
             // --- Cat 2 Evaluation ---
@@ -334,12 +377,21 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
                 expected += 1000.0;
             }
 
+            // --- Cat 3 Evaluation ---
+            if (j < 1) {
+                // Bottom row: masked high-hierarchy replace applies.
+                expected += 5;
+            } else {
+                // top 3 rows: mask doesn't apply, fall back to base layer
+                expected += 1;
+            }
+
             // Final result, shown visually with cartesian indexing (rows are j=0..3, counting up from the bottom; columns are i=0..3,
             // counting up from the left):
-            //      1100.0, 1100.0, 1110.0, 1110.0
-            //      1100.0, 1100.0, 1110.0, 1110.0
-            //      5100.0, 5100.0, 5110.0, 5110.0
-            //      5100.0, 5100.0, 5110.0, 5110.0
+            //      1251.0, 1251.0, 1261.0, 1261.0
+            //      1251.0, 1251.0, 1261.0, 1261.0
+            //      5251.0, 5251.0, 5261.0, 5261.0
+            //      5255.0, 5255.0, 5265.0, 5265.0
 
             // Verify final summed output of both categories
             EXPECT_DOUBLE_EQ(result(i, j, 0), expected);
