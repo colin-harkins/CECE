@@ -361,11 +361,11 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
                 // Left half: masked high-hierarchy replace applies.
                 // Values = 50.0 (base) * 2.0 (scale field) = 100.0
                 // Add 150 for highest hierarchy.
-                expected += 100.0+150.0;
+                expected += 100.0 + 150.0;
             } else {
                 // Right half: mask doesn't apply, so fallback uses the accumulated value
                 // for cat 1 mid hier and cat 1 low hier. Add 150.0 for highest hierarchy
-                expected += 110.0+150.0;
+                expected += 110.0 + 150.0;
             }
 
             // --- Cat 2 Evaluation ---
