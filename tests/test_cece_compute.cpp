@@ -345,7 +345,6 @@ TEST_F(CeceComputeTest, HierarchyAndCategory) {
     l8.hierarchy = 10;
     l8.masks = {"very_bottom_mask"};
 
-
     // Input layers out of logical order to ensure internal sorting works correctly
     config.species_layers["nox"] = {l7, l3, l1, l5, l8, l4, l2, l6};
 
