@@ -16,7 +16,7 @@ namespace cece::io {
 
 /// Build an AXIS UnstructuredMesh from rectilinear coordinate arrays.
 axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int ni, int nj, const std::vector<double>& lons, const std::vector<double>& lats,
-                                                                    const std::string& gridspec_file = "");
+                                                                    const std::string& gridspec_file = "", const std::string& map_algo = "");
 
 /// Build the destination sub-mesh for a rectilinear latitude band [j0, j1) with
 /// GLOBALLY-CONSISTENT cell corners. Unlike a plain build_axis_mesh over a

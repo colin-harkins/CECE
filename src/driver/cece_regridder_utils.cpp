@@ -385,7 +385,7 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(i
 }
 
 axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int ni, int nj, const std::vector<double>& lons, const std::vector<double>& lats,
-                                                                    const std::string& gridspec_file) {
+                                                                    const std::string& gridspec_file, const std::string& map_algo) {
     if (!gridspec_file.empty() && gridspec_file != "none" && gridspec_file != "NONE") {
         try {
             return load_mesh_from_file(ni, nj, gridspec_file);
@@ -475,6 +475,70 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int ni, int 
                 center_lon(idx) = lons[i];
                 center_lat(idx) = lats[j];
             }
+        }
+    }
+
+    // Ensure that for conservative mapping, the center lat/lon coordinates have constant spacing,
+    // since to_unstructured relies on this to calculate grid corners.
+    if (map_algo == "consd" || map_algo == "conservative" || map_algo == "cons" || map_algo == "consf" ||
+        map_algo == "conservative1st" || map_algo == "conss" || map_algo == "conservative2nd" ||
+        map_algo == "cons2nd" || map_algo == "consf") {
+        // Validate constant spacing since to_unstructured relies on it to calculate grid corners
+        bool constant_spacing = true;
+        const double tol = 1e-5;
+
+        if (!curvilinear) {
+            // Fast path for 1D rectilinear coordinate arrays: O(ni + nj)
+            if (ni > 1) {
+                double dlon = lons[1] - lons[0];
+                for (int i = 2; i < ni; ++i) {
+                    if (std::abs((lons[i] - lons[i - 1]) - dlon) > tol) {
+                        constant_spacing = false;
+                        break;
+                    }
+                }
+            }
+            if (nj > 1 && constant_spacing) {
+                double dlat = lats[1] - lats[0];
+                for (int j = 2; j < nj; ++j) {
+                    if (std::abs((lats[j] - lats[j - 1]) - dlat) > tol) {
+                        constant_spacing = false;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Slow path for fully expanded 2D curvilinear grids: O(ni * nj)
+            if (ni > 1) {
+                double dlon = center_lon(1) - center_lon(0);
+                for (int j = 0; j < nj && constant_spacing; ++j) {
+                    for (int i = 1; i < ni; ++i) {
+                        size_t idx = static_cast<size_t>(j) * ni + i;
+                        if (std::abs((center_lon(idx) - center_lon(idx - 1)) - dlon) > tol) {
+                            constant_spacing = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (nj > 1 && constant_spacing) {
+                double dlat = center_lat(ni) - center_lat(0);
+                for (int j = 1; j < nj && constant_spacing; ++j) {
+                    for (int i = 0; i < ni; ++i) {
+                        size_t idx = static_cast<size_t>(j) * ni + i;
+                        size_t prev_idx = static_cast<size_t>(j - 1) * ni + i;
+                        if (std::abs((center_lat(idx) - center_lat(prev_idx)) - dlat) > tol) {
+                            constant_spacing = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!constant_spacing) {
+            throw std::runtime_error("Dynamic unstructured grid fallback requires center lat and lon coordinates to have constant spacing. \
+                Please provide a gridspec_file for non-uniform grids or use a different mapping algorithm.");
         }
     }
 
@@ -800,7 +864,7 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
     }
 
     // A. Build the (global) source mesh and the rank-local destination sub-mesh.
-    auto src_mesh = build_axis_mesh(plan.file_nx, plan.file_ny, src_lons, src_lats, src_gridspec_file);
+    auto src_mesh = build_axis_mesh(plan.file_nx, plan.file_ny, src_lons, src_lats, src_gridspec_file, map_algo);
 
     const bool curvilinear_target = (target_lons.size() == static_cast<size_t>(nx) * ny && ny > 1);
 
@@ -869,7 +933,7 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
         dst_gridspec_file.empty()
             ? (curvilinear_target ? build_band_mesh_curvilinear_with_global_corners(nx, j0, j1, full_center_lon, target_lats, band_lons, band_lats)
                                   : build_band_mesh_with_global_corners(nx, j0, j1, band_lons, target_lats))
-            : build_axis_mesh(nx, nband, band_lons, band_lats, dst_gridspec_file);
+            : build_axis_mesh(nx, nband, band_lons, band_lats, dst_gridspec_file, map_algo);
 
     // B. Configure weight generation method.
     axis::solver::RegridConfig regrid_cfg;
