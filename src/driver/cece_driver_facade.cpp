@@ -1290,8 +1290,8 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                 } else {
                     bool local_plan_built = false;
                     try {
-                        local_plan_built =
-                            cece::io::build_regrid_plan(read_dataset, nx_, ny_, target_lons_, target_lats_, mapalgo, j0, j1, stream_gridspec_file, gridspec_file_, plan);
+                        local_plan_built = cece::io::build_regrid_plan(read_dataset, nx_, ny_, target_lons_, target_lats_, mapalgo, j0, j1,
+                                                                       stream_gridspec_file, gridspec_file_, plan);
                     } catch (const std::exception& error) {
                         failure_detail = "regrid plan construction threw an exception: " + std::string(error.what());
                     } catch (...) {

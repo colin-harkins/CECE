@@ -280,7 +280,7 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(i
                         return std::string(buf.data());
                     }
                 }
-                return fallback; // Return standard fallback if attribute is missing
+                return fallback;  // Return standard fallback if attribute is missing
             };
 
             // 3. Query the 'bounds' attribute for both coordinates
@@ -340,10 +340,14 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(i
                         size_t base_v = cell_idx * 4;
 
                         // Construct 4 corners counterclockwise
-                        node_coords(base_v + 0, 0) = lon_min; node_coords(base_v + 0, 1) = lat_min;
-                        node_coords(base_v + 1, 0) = lon_max; node_coords(base_v + 1, 1) = lat_min;
-                        node_coords(base_v + 2, 0) = lon_max; node_coords(base_v + 2, 1) = lat_max;
-                        node_coords(base_v + 3, 0) = lon_min; node_coords(base_v + 3, 1) = lat_max;
+                        node_coords(base_v + 0, 0) = lon_min;
+                        node_coords(base_v + 0, 1) = lat_min;
+                        node_coords(base_v + 1, 0) = lon_max;
+                        node_coords(base_v + 1, 1) = lat_min;
+                        node_coords(base_v + 2, 0) = lon_max;
+                        node_coords(base_v + 2, 1) = lat_max;
+                        node_coords(base_v + 3, 0) = lon_min;
+                        node_coords(base_v + 3, 1) = lat_max;
 
                         for (int v = 0; v < 4; ++v) {
                             conn_indices(base_v + v) = base_v + v;
@@ -367,9 +371,8 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(i
             amio_close(dataset);
             amio_finalize(core);
 
-            return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(
-                node_coords, conn_offsets, conn_indices,
-                axis::topology::CoordinateSystem::SphericalDeg);
+            return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(node_coords, conn_offsets, conn_indices,
+                                                                       axis::topology::CoordinateSystem::SphericalDeg);
 
         } catch (const std::exception& e) {
             // Resource cleanup is important if an exception gets thrown inside the try-block
@@ -480,9 +483,8 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int ni, int 
 
     // Ensure that for conservative mapping, the center lat/lon coordinates have constant spacing,
     // since to_unstructured relies on this to calculate grid corners.
-    if (map_algo == "consd" || map_algo == "conservative" || map_algo == "cons" || map_algo == "consf" ||
-        map_algo == "conservative1st" || map_algo == "conss" || map_algo == "conservative2nd" ||
-        map_algo == "cons2nd" || map_algo == "consf") {
+    if (map_algo == "consd" || map_algo == "conservative" || map_algo == "cons" || map_algo == "consf" || map_algo == "conservative1st" ||
+        map_algo == "conss" || map_algo == "conservative2nd" || map_algo == "cons2nd" || map_algo == "consf") {
         // Validate constant spacing since to_unstructured relies on it to calculate grid corners
         bool constant_spacing = true;
         const double tol = 1e-5;
@@ -537,7 +539,8 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int ni, int 
         }
 
         if (!constant_spacing) {
-            throw std::runtime_error("Dynamic unstructured grid fallback requires center lat and lon coordinates to have constant spacing. \
+            throw std::runtime_error(
+                "Dynamic unstructured grid fallback requires center lat and lon coordinates to have constant spacing. \
                 Please provide a gridspec_file for non-uniform grids or use a different mapping algorithm.");
         }
     }
