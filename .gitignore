@@ -28,6 +28,9 @@ __pycache__/
 venv*/
 .venv*/
 
+# Local Poetry dependency resolution
+/poetry.lock
+
 # Temporary files
 *.tmp
 *.temp
@@ -51,11 +54,13 @@ amio_coord_manifest.yaml
 core.*
 GRA2PESv2.0_config_test1.yaml
 
-# --- AI Files ---
+# ---- AI folders ----
+docs/superpowers/
 specify/
-.specify/
+specs/
 .gemini/
 .github/agents/
 .github/prompts/
-docs/superpowers/
-specs/
+.specify/
+.superpowers/
+.vscode/
