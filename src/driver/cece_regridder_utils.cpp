@@ -808,18 +808,18 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int nx, int 
 
         if (!curvilinear) {
             // Fast path for 1D rectilinear coordinate arrays: O(ni + nj)
-            if (ni > 1) {
+            if (nx > 1) {
                 double dlon = lons[1] - lons[0];
-                for (int i = 2; i < ni; ++i) {
+                for (int i = 2; i < nx; ++i) {
                     if (std::abs((lons[i] - lons[i - 1]) - dlon) > tol) {
                         constant_spacing = false;
                         break;
                     }
                 }
             }
-            if (nj > 1 && constant_spacing) {
+            if (nband > 1 && constant_spacing) {
                 double dlat = lats[1] - lats[0];
-                for (int j = 2; j < nj; ++j) {
+                for (int j = 2; j < nband; ++j) {
                     if (std::abs((lats[j] - lats[j - 1]) - dlat) > tol) {
                         constant_spacing = false;
                         break;
@@ -828,11 +828,11 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int nx, int 
             }
         } else {
             // Slow path for fully expanded 2D curvilinear grids: O(ni * nj)
-            if (ni > 1) {
+            if (nx > 1) {
                 double dlon = center_lon(1) - center_lon(0);
-                for (int j = 0; j < nj && constant_spacing; ++j) {
-                    for (int i = 1; i < ni; ++i) {
-                        size_t idx = static_cast<size_t>(j) * ni + i;
+                for (int j = 0; j < nband && constant_spacing; ++j) {
+                    for (int i = 1; i < nx; ++i) {
+                        size_t idx = static_cast<size_t>(j) * nx + i;
                         if (std::abs((center_lon(idx) - center_lon(idx - 1)) - dlon) > tol) {
                             constant_spacing = false;
                             break;
@@ -840,76 +840,12 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int nx, int 
                     }
                 }
             }
-            if (nj > 1 && constant_spacing) {
-                double dlat = center_lat(ni) - center_lat(0);
-                for (int j = 1; j < nj && constant_spacing; ++j) {
-                    for (int i = 0; i < ni; ++i) {
-                        size_t idx = static_cast<size_t>(j) * ni + i;
-                        size_t prev_idx = static_cast<size_t>(j - 1) * ni + i;
-                        if (std::abs((center_lat(idx) - center_lat(prev_idx)) - dlat) > tol) {
-                            constant_spacing = false;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!constant_spacing) {
-            throw std::runtime_error(
-                "Dynamic unstructured grid fallback requires center lat and lon coordinates to have constant spacing. \
-                Please provide a gridspec_file for non-uniform grids or use a different mapping algorithm.");
-        }
-    }
-
-    // Ensure that for conservative mapping, the center lat/lon coordinates have constant spacing,
-    // since to_unstructured relies on this to calculate grid corners.
-    if (map_algo == "consd" || map_algo == "conservative" || map_algo == "cons" || map_algo == "consf" || map_algo == "conservative1st" ||
-        map_algo == "conss" || map_algo == "conservative2nd" || map_algo == "cons2nd" || map_algo == "consf") {
-        // Validate constant spacing since to_unstructured relies on it to calculate grid corners
-        bool constant_spacing = true;
-        const double tol = 1e-5;
-
-        if (!curvilinear) {
-            // Fast path for 1D rectilinear coordinate arrays: O(ni + nj)
-            if (ni > 1) {
-                double dlon = lons[1] - lons[0];
-                for (int i = 2; i < ni; ++i) {
-                    if (std::abs((lons[i] - lons[i - 1]) - dlon) > tol) {
-                        constant_spacing = false;
-                        break;
-                    }
-                }
-            }
-            if (nj > 1 && constant_spacing) {
-                double dlat = lats[1] - lats[0];
-                for (int j = 2; j < nj; ++j) {
-                    if (std::abs((lats[j] - lats[j - 1]) - dlat) > tol) {
-                        constant_spacing = false;
-                        break;
-                    }
-                }
-            }
-        } else {
-            // Slow path for fully expanded 2D curvilinear grids: O(ni * nj)
-            if (ni > 1) {
-                double dlon = center_lon(1) - center_lon(0);
-                for (int j = 0; j < nj && constant_spacing; ++j) {
-                    for (int i = 1; i < ni; ++i) {
-                        size_t idx = static_cast<size_t>(j) * ni + i;
-                        if (std::abs((center_lon(idx) - center_lon(idx - 1)) - dlon) > tol) {
-                            constant_spacing = false;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (nj > 1 && constant_spacing) {
-                double dlat = center_lat(ni) - center_lat(0);
-                for (int j = 1; j < nj && constant_spacing; ++j) {
-                    for (int i = 0; i < ni; ++i) {
-                        size_t idx = static_cast<size_t>(j) * ni + i;
-                        size_t prev_idx = static_cast<size_t>(j - 1) * ni + i;
+            if (nband > 1 && constant_spacing) {
+                double dlat = center_lat(nx) - center_lat(0);
+                for (int j = 1; j < nband && constant_spacing; ++j) {
+                    for (int i = 0; i < nx; ++i) {
+                        size_t idx = static_cast<size_t>(j) * nx + i;
+                        size_t prev_idx = static_cast<size_t>(j - 1) * nx + i;
                         if (std::abs((center_lat(idx) - center_lat(prev_idx)) - dlat) > tol) {
                             constant_spacing = false;
                             break;

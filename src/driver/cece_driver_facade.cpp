@@ -158,8 +158,8 @@ StreamConfig CeceDriverOrchestrator::BuildStreamConfig(const YAML::Node& stream,
     if (stream["file"]) {
         cfg.input_file_path = stream["file"].as<std::string>();
     }
-    if (stream["stream_gridspec_file"]) {
-        cfg.stream_gridspec_file = stream["stream_gridspec_file"].as<std::string>();
+    if (stream["input_gridspec_file"]) {
+        cfg.input_gridspec_file = stream["input_gridspec_file"].as<std::string>();
     }
     cfg.input_var_name = file_name;
     if (stream["mapalgo"]) {
@@ -347,12 +347,12 @@ std::string CeceDriverOrchestrator::BuildManifestContent(const StreamConfig& cfg
 }
 
 std::string CeceDriverOrchestrator::StreamKey(const StreamConfig& cfg) {
-    // Stream identity key = HandleKey extended by mapalgo and stream_gridspec_file.
+    // Stream identity key = HandleKey extended by mapalgo and input_gridspec_file.
     // It keys the regrid plan cache (regrid_plans_): variables sharing a HandleKey
     // but requesting a different mapalgo get distinct StreamKeys
     // and therefore distinct plans, while everything else is shared at
     // the coarser HandleKey level (Req 11.5).
-    return HandleKey(cfg) + "|" + cfg.mapalgo + "|" + cfg.stream_gridspec_file;
+    return HandleKey(cfg) + "|" + cfg.mapalgo + "|" + cfg.input_gridspec_file;
 }
 
 void CeceDriverOrchestrator::InvalidateEndpointCachesForStream(const std::string& stream_key) {
@@ -1035,7 +1035,7 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
 
         std::string input_file_path = cfg.input_file_path;
         std::string input_var_name = cfg.input_var_name;
-        const std::string& stream_gridspec_file = cfg.stream_gridspec_file;
+        const std::string& input_gridspec_file = cfg.input_gridspec_file;
         const std::string& mapalgo = cfg.mapalgo;
         const std::string& cadence = cfg.cadence;
         const std::string& tintalgo = cfg.tintalgo;
@@ -1052,9 +1052,9 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
         //     file_nt_cache_. Variables reading the same file/manifest share
         //     one open AMIO handle set and one record-count search even when
         //     their mapalgo differs (Req 11.2, 11.3).
-        //   - stream_key (= handle_key + "|" + mapalgo + stream_gridspec_file)
+        //   - stream_key (= handle_key + "|" + mapalgo + input_gridspec_file)
         //     keys regrid_plans_.
-        //     The plan cache splits only when mapalgo and stream_gridspec_file
+        //     The plan cache splits only when mapalgo and input_gridspec_file
         //     differ; everything else stays shared at the
         //     coarser handle_key level (Req 11.5, 11.6).
         //   - slice_caches_ and cece_ingestor_set_field remain keyed by
@@ -1212,7 +1212,7 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                     bool local_plan_built = false;
                     try {
                         local_plan_built = cece::io::build_regrid_plan(read_dataset, nx_, ny_, target_lons_, target_lats_, mapalgo, j0, j1,
-                                                                       stream_gridspec_file, gridspec_file_, plan);
+                                                                       input_gridspec_file, gridspec_file_, plan);
                     } catch (const std::exception& error) {
                         failure_detail = "regrid plan construction threw an exception: " + std::string(error.what());
                     } catch (...) {
