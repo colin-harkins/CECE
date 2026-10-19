@@ -1,5 +1,47 @@
 # GRIDSPEC File Input Support
 
+## Source geometry for regridding
+
+`driver.gridspec_file` selects the model/destination grid used by the standalone
+driver. A stream's source geometry is configured separately under
+`cece_data.streams` with `input_gridspec_file` (or its `gridspec_file` alias):
+
+```yaml
+cece_data:
+  streams:
+    - name: emissions
+      file: emissions.nc
+      input_gridspec_file: emissions_grid.nc
+      longitude_variable: lon
+      latitude_variable: lat
+      geometry_reconstruction: none
+```
+
+When both stream path keys are present, they must have the same value. The
+source coordinate variable names are optional; without them CECE detects
+supported conventional names. Selected gridspec cell geometry takes
+precedence over reconstruction. CECE does not infer cell edges
+from centers by default. Use a non-default `geometry_reconstruction` only when
+the input grid meets that model's assumptions; `curvilinear_approximate` is
+explicitly approximate and does not qualify as authoritative conservative
+geometry. Conservative methods require usable source and destination cell
+boundaries with compatible geometry models. Center-only input remains valid for
+sample methods such as nearest-neighbor.
+
+For rectilinear source data, the shared geometry loader also follows each CF
+coordinate's `bounds` attribute when both longitude and latitude bounds are
+present as two-vertex arrays. These supplied cell bounds are retained even for
+center-only methods. If only one axis advertises bounds, or a selected bounds
+variable has an invalid shape/value, geometry loading fails. A configured
+`input_gridspec_file` takes precedence over bounds attached to the source data.
+Curvilinear CF bounds and other non-rectilinear conventions should be selected
+through a gridspec adapter until their ordering and boundary models are
+supported directly.
+
+Older stream configurations that put a source path in `gridspec_file` may keep
+using that alias. For clarity, migrate it to `input_gridspec_file`; keep
+`driver.gridspec_file` for the destination grid.
+
 ## Overview
 
 The CECE driver supports loading a pre-generated ESMF GRIDSPEC NetCDF file for spatial discretization.

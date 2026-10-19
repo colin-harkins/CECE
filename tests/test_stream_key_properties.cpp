@@ -114,7 +114,9 @@ RC_GTEST_PROP(StreamKeyProperty, Property1_Concatenation, ()) {
     const std::string expected = cfg.input_file_path + "|" + cfg.data_model + "|" + std::to_string(cfg.amio_worker_threads) + "|" +
                                  std::to_string(cfg.amio_staging_buffer_count) + "|" + std::to_string(cfg.amio_staging_buffer_capacity_bytes) + "|" +
                                  std::to_string(cfg.amio_prefetch_depth) + "|" + cfg.mapalgo + "|" + cfg.input_gridspec_file;
-    RC_ASSERT(StreamKeyTestAccess::Key(cfg) == expected);
+    const std::string expected_with_geometry = expected + "|" + cfg.source_geometry.longitude_variable + "|" + cfg.source_geometry.latitude_variable + "|" +
+                                               std::to_string(static_cast<int>(cfg.source_geometry.reconstruction));
+    RC_ASSERT(StreamKeyTestAccess::Key(cfg) == expected_with_geometry);
 }
 
 // ============================================================================

@@ -595,10 +595,14 @@ class DataStreamConfig:
     yearAlign: int = 0
     offset: int = 0
     meshfile: str = ""
+    input_gridspec_file: str = ""
+    geometry_reconstruction: str = "none"
     lev_dimname: str = "lev"
     time_var: str = "time"
     lon_var: str = "lon"
     lat_var: str = "lat"
+    longitude_variable: str = ""
+    latitude_variable: str = ""
     time_units: str = ""
     calendar: str = ""
     data_model: str = "auto"
@@ -653,14 +657,22 @@ class DataStreamConfig:
             raise ValueError("refresh_interval_seconds must be non-negative")
         for key in (
             "meshfile",
+            "input_gridspec_file",
+            "geometry_reconstruction",
             "lev_dimname",
             "time_var",
             "lon_var",
             "lat_var",
+            "longitude_variable",
+            "latitude_variable",
             "time_units",
             "calendar",
         ):
             _validate_string(getattr(self, key), key, allow_empty=True)
+        if self.geometry_reconstruction not in {
+            "none", "rectilinear_midpoint", "gaussian_latlon", "curvilinear_approximate"
+        }:
+            raise ValueError(f"Invalid geometry_reconstruction: {self.geometry_reconstruction}")
 
     @classmethod
     def from_dict(
@@ -682,16 +694,25 @@ class DataStreamConfig:
             "yearAlign",
             "offset",
             "meshfile",
+            "input_gridspec_file",
+            "gridspec_file",
+            "geometry_reconstruction",
             "lev_dimname",
             "time_var",
             "lon_var",
             "lat_var",
+            "longitude_variable",
+            "latitude_variable",
             "time_units",
             "calendar",
             "data_model",
             "refresh_interval_seconds",
         }
         _reject_unknown_keys(values, allowed, where)
+        input_grid = values.get("input_gridspec_file", "")
+        grid_alias = values.get("gridspec_file", "")
+        if input_grid and grid_alias and input_grid != grid_alias:
+            raise ValueError(f"{where}: input_gridspec_file and gridspec_file specify different paths")
         files = values.get("file", [])
         if isinstance(files, str):
             files = [files]
@@ -732,10 +753,14 @@ class DataStreamConfig:
             yearAlign=values.get("yearAlign", 0),
             offset=values.get("offset", 0),
             meshfile=values.get("meshfile", ""),
+            input_gridspec_file=input_grid or grid_alias,
+            geometry_reconstruction=normalized("geometry_reconstruction", "none"),
             lev_dimname=values.get("lev_dimname", "lev"),
             time_var=values.get("time_var", "time"),
             lon_var=values.get("lon_var", "lon"),
             lat_var=values.get("lat_var", "lat"),
+            longitude_variable=values.get("longitude_variable", ""),
+            latitude_variable=values.get("latitude_variable", ""),
             time_units=values.get("time_units", ""),
             calendar=values.get("calendar", ""),
             data_model=normalized("data_model", "auto"),
@@ -778,10 +803,14 @@ class DataStreamConfig:
             "yearAlign": 0,
             "offset": 0,
             "meshfile": "",
+            "input_gridspec_file": "",
+            "geometry_reconstruction": "none",
             "lev_dimname": "lev",
             "time_var": "time",
             "lon_var": "lon",
             "lat_var": "lat",
+            "longitude_variable": "",
+            "latitude_variable": "",
             "time_units": "",
             "calendar": "",
             "data_model": "auto",
@@ -851,6 +880,9 @@ class DriverConfig:
     timestep_seconds: int = 3600
     log_file: str | None = None
     gridspec_file: str | None = None
+    longitude_variable: str = ""
+    latitude_variable: str = ""
+    geometry_reconstruction: str = "none"
     grid: GridConfig = field(default_factory=GridConfig)
     stacking_refresh_interval_seconds: int = 0
     amio_worker_threads: int = 1
@@ -882,6 +914,13 @@ class DriverConfig:
             _validate_string(self.log_file, "driver.log_file")
         if self.gridspec_file is not None:
             _validate_string(self.gridspec_file, "driver.gridspec_file")
+        for key in ("longitude_variable", "latitude_variable"):
+            _validate_string(getattr(self, key), f"driver.{key}", allow_empty=True)
+        _validate_string(self.geometry_reconstruction, "driver.geometry_reconstruction")
+        if self.geometry_reconstruction not in {
+            "none", "rectilinear_midpoint", "gaussian_latlon", "curvilinear_approximate"
+        }:
+            raise ValueError(f"Invalid driver.geometry_reconstruction: {self.geometry_reconstruction}")
         self.grid.validate()
         _validate_integer(
             self.stacking_refresh_interval_seconds,
@@ -920,6 +959,9 @@ class DriverConfig:
                 "timestep_seconds",
                 "log_file",
                 "gridspec_file",
+                "longitude_variable",
+                "latitude_variable",
+                "geometry_reconstruction",
                 "grid",
                 "stacking_refresh_interval_seconds",
                 "amio_worker_threads",
@@ -1354,10 +1396,14 @@ class CeceConfig:
             "yearAlign",
             "offset",
             "meshfile",
+            "input_gridspec_file",
+            "geometry_reconstruction",
             "lev_dimname",
             "time_var",
             "lon_var",
             "lat_var",
+            "longitude_variable",
+            "latitude_variable",
             "time_units",
             "calendar",
             "data_model",
@@ -1683,6 +1729,9 @@ class CeceConfig:
                 "timestep_seconds": driver.timestep_seconds,
                 "log_file": driver.log_file,
                 "gridspec_file": driver.gridspec_file,
+                "longitude_variable": driver.longitude_variable,
+                "latitude_variable": driver.latitude_variable,
+                "geometry_reconstruction": driver.geometry_reconstruction,
                 "grid": {
                     "grid_name": driver.grid.grid_name,
                     "nx": driver.grid.nx,

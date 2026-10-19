@@ -3,7 +3,6 @@
 
 #include <Kokkos_Core.hpp>
 #include <axis/topology/named_grid_registry.hpp>
-#include <cmath>
 #include <conf/conf.hpp>
 #include <halo/communicator.hpp>
 #include <halo/environment.hpp>
@@ -15,12 +14,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cece/cece_amio_utils.hpp"
 #include "cece/cece_band_decomposition.hpp"
 #include "cece/cece_config.hpp"
 #include "cece/cece_driver_facade.hpp"
 #include "cece/cece_fatal.hpp"
 #include "cece/cece_logger.hpp"
+#include "cece/cece_regridder_utils.hpp"
 
 namespace {
 
@@ -32,10 +31,6 @@ constexpr inline double wrap_longitude(double lon) {
         return lon + 360.0;
     }
     return lon;
-}
-
-constexpr inline double radians_to_degrees(double rad) {
-    return rad * 180.0 / M_PI;
 }
 
 // Build the in-memory AMIO coordinate-manifest YAML for reading lon/lat out
@@ -246,8 +241,6 @@ int main(int argc, char* argv[]) {
                 for (int j = 0; j < ny; ++j) {
                     file_lats[j] = coords(j * nx, 1);
                 }
-                std::sort(file_lons.begin(), file_lons.end());
-                std::sort(file_lats.begin(), file_lats.end());
                 has_file_coords = true;
             } catch (const std::exception& e) {
                 CECE_LOG_ERROR("Failed to retrieve coordinates from named grid '" + grid_name + "': " + e.what());
@@ -287,11 +280,12 @@ int main(int argc, char* argv[]) {
                 // produces torn reads (empty/partial YAML) and spurious open failures.
                 const std::string coord_manifest_content = BuildCoordinateManifest(input_file_path);
 
+                int file_nx = 0;
+                int file_ny = 0;
+                std::vector<double> file_lon_coords;
+                std::vector<double> file_lat_coords;
                 amio_core_handle coord_core = nullptr;
                 amio_dataset_handle coord_dataset = nullptr;
-                amio_view_handle lon_view = nullptr;
-                amio_view_handle lat_view = nullptr;
-
                 amio_status_t amio_rc = amio_init_from_string(coord_manifest_content.c_str(), "yaml", &coord_core);
                 if (amio_rc != AMIO_OK) {
                     CECE_LOG_ERROR(std::string("amio_init_from_string failed for coordinate manifest: ") + amio_strerror(amio_rc));
@@ -300,138 +294,33 @@ int main(int argc, char* argv[]) {
                     if (amio_rc != AMIO_OK) {
                         CECE_LOG_ERROR("amio_open_dataset_from_string failed for dataset '" + input_file_path + "': " + amio_strerror(amio_rc));
                     } else {
-                        int file_nx = 0;
-                        int file_ny = 0;
-                        std::vector<double> file_lon_coords;
-                        std::vector<double> file_lat_coords;
-
-                        static const std::vector<std::string> kLonNames = {
-                            "grid_lont", "grid_lon", "XLONG",   "lonCell", "geolon",      "clon",          "glamt",  "mesh2d_face_lon", "lon",
-                            "longitude", "LON",      "lon_rho", "nav_lon", "mesh_node_x", "mesh2d_node_x", "node_x", "grid_xt",         "x"};
-                        bool is_radian = false;
-                        std::string lon_var_name;
-                        amio_status_t lon_status = static_cast<amio_status_t>(-1);
-                        for (const auto& name : kLonNames) {
-                            lon_status = amio_read(coord_dataset, name.c_str(), 0, nullptr, &lon_view);
-                            if (lon_status == AMIO_OK) {
-                                lon_var_name = name;
-                                if (name == "lonCell" || name == "latCell" || name == "lonVertex" || name == "latVertex") {
-                                    is_radian = true;
-                                }
-                                break;
-                            }
+                        try {
+                            cece::io::GeometrySettings geometry_settings;
+                            if (is_explicit_gridspec) geometry_settings.gridspec_file = input_file_path;
+                            geometry_settings.longitude_variable = config.try_string("driver.longitude_variable").value_or("");
+                            geometry_settings.latitude_variable = config.try_string("driver.latitude_variable").value_or("");
+                            const auto geometry = cece::io::load_grid_geometry(coord_dataset, geometry_settings);
+                            file_nx = geometry.nx;
+                            file_ny = geometry.ny;
+                            file_lon_coords = geometry.center_lon;
+                            file_lat_coords = geometry.center_lat;
+                        } catch (const std::exception& error) {
+                            CECE_LOG_ERROR("Failed to load target geometry from '" + input_file_path + "': " + error.what());
+                            file_nx = 0;
+                            file_ny = 0;
                         }
-
-                        if (lon_status == AMIO_OK) {
-                            const void* view_data = nullptr;
-                            size_t view_size = 0;
-                            if (amio_view_data(lon_view, &view_data, &view_size) == AMIO_OK) {
-                                amio_shape_t lon_shape{};
-                                if (amio_view_shape(lon_view, &lon_shape) == AMIO_OK) {
-                                    if (lon_shape.rank == 1) {
-                                        file_nx = static_cast<int>(lon_shape.extents[0]);
-                                    } else if (lon_shape.rank == 2) {
-                                        file_nx = static_cast<int>(lon_shape.extents[1]);
-                                    }
-                                    int total_len = 1;
-                                    for (int r = 0; r < lon_shape.rank; ++r) {
-                                        total_len *= static_cast<int>(lon_shape.extents[r]);
-                                    }
-                                    amio_dtype_t dtype = AMIO_DTYPE_F64;
-                                    double lon_scale = 1.0;
-                                    double lon_offset = 0.0;
-                                    cece::detail::read_cf_packing(coord_dataset, lon_var_name, lon_scale, lon_offset);
-                                    std::vector<double> widened;
-                                    if (amio_view_dtype(lon_view, &dtype) == AMIO_OK &&
-                                        cece::detail::widen_amio_elements(view_data, dtype, static_cast<std::size_t>(total_len), lon_scale,
-                                                                          lon_offset, widened)) {
-                                        file_lon_coords.resize(total_len);
-                                        for (int i = 0; i < total_len; ++i) {
-                                            double val = widened[i];
-                                            if (is_radian) {
-                                                val = radians_to_degrees(val);
-                                            }
-                                            file_lon_coords[i] = wrap_longitude(val);
-                                        }
-                                    } else {
-                                        // Leaving file_nx set here would let an empty
-                                        // coordinate array pass as a loaded gridspec.
-                                        CECE_LOG_ERROR("Could not decode gridspec longitude variable '" + lon_var_name + "'");
-                                        file_nx = 0;
-                                    }
-                                }
-                            }
-                            amio_release_view(lon_view);
-                        }
-
-                        static const std::vector<std::string> kLatNames = {
-                            "grid_latt", "grid_lat", "XLAT",    "latCell", "geolat",      "clat",          "gphit",  "mesh2d_face_lat", "lat",
-                            "latitude",  "LAT",      "lat_rho", "nav_lat", "mesh_node_y", "mesh2d_node_y", "node_y", "grid_yt",         "y"};
-                        amio_status_t lat_status = static_cast<amio_status_t>(-1);
-                        std::string lat_var_name;
-                        for (const auto& name : kLatNames) {
-                            lat_status = amio_read(coord_dataset, name.c_str(), 0, nullptr, &lat_view);
-                            if (lat_status == AMIO_OK) {
-                                lat_var_name = name;
-                                break;
-                            }
-                        }
-
-                        if (lat_status == AMIO_OK) {
-                            const void* view_data = nullptr;
-                            size_t view_size = 0;
-                            if (amio_view_data(lat_view, &view_data, &view_size) == AMIO_OK) {
-                                amio_shape_t lat_shape{};
-                                if (amio_view_shape(lat_view, &lat_shape) == AMIO_OK) {
-                                    if (lat_shape.rank == 1 || lat_shape.rank == 2) {
-                                        file_ny = static_cast<int>(lat_shape.extents[0]);
-                                    }
-                                    int total_len = 1;
-                                    for (int r = 0; r < lat_shape.rank; ++r) {
-                                        total_len *= static_cast<int>(lat_shape.extents[r]);
-                                    }
-                                    amio_dtype_t dtype = AMIO_DTYPE_F64;
-                                    double lat_scale = 1.0;
-                                    double lat_offset = 0.0;
-                                    cece::detail::read_cf_packing(coord_dataset, lat_var_name, lat_scale, lat_offset);
-                                    std::vector<double> widened;
-                                    if (amio_view_dtype(lat_view, &dtype) == AMIO_OK &&
-                                        cece::detail::widen_amio_elements(view_data, dtype, static_cast<std::size_t>(total_len), lat_scale,
-                                                                          lat_offset, widened)) {
-                                        file_lat_coords.resize(total_len);
-                                        for (int j = 0; j < total_len; ++j) {
-                                            double val = widened[j];
-                                            if (is_radian) {
-                                                val = radians_to_degrees(val);
-                                            }
-                                            file_lat_coords[j] = val;
-                                        }
-                                    } else {
-                                        CECE_LOG_ERROR("Could not decode gridspec latitude variable '" + lat_var_name + "'");
-                                        file_ny = 0;
-                                    }
-                                }
-                            }
-                            amio_release_view(lat_view);
-                        }
-
-                        amio_close(coord_dataset);
-
-                        // If nx and ny are not specified in the configuration, dynamically inherit them from the gridspec file
-                        if (nx == 0 && file_nx > 0) {
-                            nx = file_nx;
-                        }
-                        if (ny == 0 && file_ny > 0) {
-                            ny = (file_ny == file_nx) ? 1 : file_ny;
-                        }
-
-                        if (nx == file_nx && (ny == file_ny || (ny == 1 && file_ny == file_nx)) && file_nx > 0 && file_ny > 0) {
-                            file_lons = file_lon_coords;
-                            file_lats = file_lat_coords;
-                            loaded_from_file = true;
-                        }
+                        amio_close_dataset(coord_dataset);
                     }
                     amio_finalize(coord_core);
+                }
+
+                // If nx and ny are not specified in the configuration, inherit them from the loaded geometry.
+                if (nx == 0 && file_nx > 0) nx = file_nx;
+                if (ny == 0 && file_ny > 0) ny = file_ny;
+                if (nx == file_nx && ny == file_ny && file_nx > 0 && file_ny > 0) {
+                    file_lons = file_lon_coords;
+                    file_lats = file_lat_coords;
+                    loaded_from_file = true;
                 }
             }
 

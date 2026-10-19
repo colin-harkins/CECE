@@ -150,6 +150,17 @@ cece_add_gtest(
   PROPERTIES PROCESSORS 1
 )
 cece_add_gtest(test_rectilinear_gridspec MAIN MPI_KOKKOS MPI_LAUNCHER PROPERTIES PROCESSORS 1)
+cece_add_gtest(test_regrid_method_resolution MAIN KOKKOS)
+cece_add_gtest(test_grid_geometry MAIN MPI_KOKKOS)
+cece_add_gtest(test_regrid_prerequisites MAIN KOKKOS)
+cece_add_gtest(
+  test_geometry_plan_lifecycle
+  MAIN MPI_KOKKOS
+  MPI_LAUNCHER
+  NO_DISCOVER
+)
+cece_add_mpi_tests(test_geometry_plan_lifecycle NP 1 2)
+cece_add_gtest(test_geometry_conservation MAIN KOKKOS)
 cece_add_gtest(test_physics)
 cece_add_gtest(test_hemco_mimic)
 cece_add_gtest(test_stacking_engine)
