@@ -223,7 +223,8 @@ CeceConfig ParseConfig(const std::string& filename) {
             const std::string input_gridspec = string_or(node, "input_gridspec_file");
             const std::string gridspec_alias = string_or(node, "gridspec_file");
             if (!input_gridspec.empty() && !gridspec_alias.empty() && input_gridspec != gridspec_alias)
-                throw std::invalid_argument("cece_data.streams[" + std::to_string(i) + "]: input_gridspec_file and gridspec_file specify different paths");
+                throw std::invalid_argument("cece_data.streams[" + std::to_string(i) +
+                                            "]: input_gridspec_file and gridspec_file specify different paths");
             stream.input_gridspec_file = input_gridspec.empty() ? gridspec_alias : input_gridspec;
             stream.geometry_reconstruction = string_or(node, "geometry_reconstruction", stream.geometry_reconstruction);
             if (stream.geometry_reconstruction != "none" && stream.geometry_reconstruction != "rectilinear_midpoint" &&
@@ -335,7 +336,8 @@ CeceConfig ParseConfig(const std::string& filename) {
         if (config.driver_config.geometry_reconstruction != "none" && config.driver_config.geometry_reconstruction != "rectilinear_midpoint" &&
             config.driver_config.geometry_reconstruction != "gaussian_latlon" &&
             config.driver_config.geometry_reconstruction != "curvilinear_approximate")
-            throw std::invalid_argument("driver.geometry_reconstruction has unsupported value '" + config.driver_config.geometry_reconstruction + "'");
+            throw std::invalid_argument("driver.geometry_reconstruction has unsupported value '" + config.driver_config.geometry_reconstruction +
+                                        "'");
         conf::Value grid = driver["grid"];
         config.driver_config.grid.nx = grid["nx"].int_or(config.driver_config.grid.nx);
         config.driver_config.grid.ny = grid["ny"].int_or(config.driver_config.grid.ny);

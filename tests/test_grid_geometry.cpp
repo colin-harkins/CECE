@@ -128,7 +128,8 @@ TEST_F(AmioGeometryFixture, LoadsDescendingNonuniformCfBoundsAsAuthoritativeCell
     if (!usable) GTEST_SKIP() << "AMIO could not open the generated NetCDF geometry fixture";
     const auto path = make_cf_bounds_file();
     const auto manifest = std::string("backend: netcdf4\npath: ") + path.string() +
-                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: 1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
+                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: "
+                          "1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
     amio_dataset_handle bounds_dataset = nullptr;
     ASSERT_EQ(amio_open_dataset_from_string(core, manifest.c_str(), "yaml", AMIO_MODE_READ, &bounds_dataset), AMIO_OK);
     const auto geometry = cece::io::load_grid_geometry(bounds_dataset);
@@ -147,7 +148,8 @@ TEST_F(AmioGeometryFixture, MalformedAdvertisedCfBoundsFailWithoutFallback) {
     if (!usable) GTEST_SKIP() << "AMIO could not open the generated NetCDF geometry fixture";
     const auto path = make_cf_bounds_file(true);
     const auto manifest = std::string("backend: netcdf4\npath: ") + path.string() +
-                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: 1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
+                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: "
+                          "1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
     amio_dataset_handle bounds_dataset = nullptr;
     ASSERT_EQ(amio_open_dataset_from_string(core, manifest.c_str(), "yaml", AMIO_MODE_READ, &bounds_dataset), AMIO_OK);
     EXPECT_THROW(cece::io::load_grid_geometry(bounds_dataset), cece::io::RegridError);
@@ -159,7 +161,8 @@ TEST_F(AmioGeometryFixture, BundledMacCityFixtureIsRejectedAsNonAuthoritative) {
     const auto path = (std::filesystem::path(__FILE__).parent_path().parent_path() / "data/speciation/MACCity_4x5.nc").lexically_normal();
     if (!std::filesystem::exists(path)) GTEST_SKIP() << "the local negative MACCity fixture is not present";
     const auto manifest = std::string("backend: netcdf4\npath: ") + path.string() +
-                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: 1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
+                          "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n  threads: "
+                          "1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
     amio_dataset_handle mac_city = nullptr;
     ASSERT_EQ(amio_open_dataset_from_string(core, manifest.c_str(), "yaml", AMIO_MODE_READ, &mac_city), AMIO_OK);
     const auto geometry = cece::io::load_grid_geometry(mac_city);
@@ -168,8 +171,7 @@ TEST_F(AmioGeometryFixture, BundledMacCityFixtureIsRejectedAsNonAuthoritative) {
     EXPECT_FALSE(geometry.has_cell_geometry);
     cece::io::GeometrySettings reconstruction;
     reconstruction.reconstruction = cece::io::ReconstructionModel::RectilinearMidpoint;
-    EXPECT_THROW(cece::io::prepare_grid_geometry(std::make_shared<const cece::io::GridGeometry>(geometry), reconstruction),
-                 cece::io::RegridError);
+    EXPECT_THROW(cece::io::prepare_grid_geometry(std::make_shared<const cece::io::GridGeometry>(geometry), reconstruction), cece::io::RegridError);
 }
 
 TEST(GridGeometryPreparation, CenterOnlyByDefault) {
@@ -255,9 +257,9 @@ TEST(GridGeometryPartition, SelectsGlobalRowsAndRebasesConnectivity) {
         }
     }
     offsets(4) = 16;
-    geometry->supplied_cells = std::make_shared<const Mesh>(std::move(coords), std::move(offsets), std::move(indices),
-                                                            axis::topology::CoordinateSystem::SphericalDeg, std::move(areas), std::move(masks),
-                                                            geometry->metadata);
+    geometry->supplied_cells =
+        std::make_shared<const Mesh>(std::move(coords), std::move(offsets), std::move(indices), axis::topology::CoordinateSystem::SphericalDeg,
+                                     std::move(areas), std::move(masks), geometry->metadata);
 
     const auto band = cece::io::partition_grid_geometry(geometry, 1, 2);
     ASSERT_TRUE(band.cells.has_value());

@@ -131,7 +131,7 @@ TEST(RegridPrerequisites, DeviceBackendFailsBeforePlanGeneration) {
     }
     try {
         (void)cece::io::validate_regrid_prerequisites(source, destination, cece::io::resolve_regrid_method("nearest"), 0, 1,
-                                                       cece::io::RegridBackend::Device);
+                                                      cece::io::RegridBackend::Device);
         FAIL() << "expected unsupported backend to fail";
     } catch (const cece::io::RegridError& error) {
         EXPECT_EQ(error.stage(), cece::io::RegridStage::PrerequisiteValidation);

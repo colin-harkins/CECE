@@ -75,10 +75,8 @@ TEST(GeometryConservation, AxisFirstOrderPreservesAnalyticStripIntegralAndConsta
 
     // Independent analytic expectation integrates each source strip using its
     // latitude/longitude edges. The target subdivides the same full sphere.
-    const double analytic_integral = unit_sphere_strip_area(-180.0, 0.0, -90.0, 0.0) +
-                                     3.0 * unit_sphere_strip_area(0.0, 180.0, -90.0, 0.0) +
-                                     2.0 * unit_sphere_strip_area(-180.0, 0.0, 0.0, 90.0) +
-                                     4.0 * unit_sphere_strip_area(0.0, 180.0, 0.0, 90.0);
+    const double analytic_integral = unit_sphere_strip_area(-180.0, 0.0, -90.0, 0.0) + 3.0 * unit_sphere_strip_area(0.0, 180.0, -90.0, 0.0) +
+                                     2.0 * unit_sphere_strip_area(-180.0, 0.0, 0.0, 90.0) + 4.0 * unit_sphere_strip_area(0.0, 180.0, 0.0, 90.0);
     double source_integral = 0.0;
     for (std::size_t cell = 0; cell < source_values.size(); ++cell) source_integral += source_values[cell] * src_mesh.cell_areas()(cell);
     EXPECT_NEAR(source_integral, analytic_integral, 1e-12);

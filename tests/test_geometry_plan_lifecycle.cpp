@@ -4,8 +4,8 @@
 #include <optional>
 #include <unordered_map>
 
-#include "cece/cece_regridder_utils.hpp"
 #include "cece/cece_driver_facade.hpp"
+#include "cece/cece_regridder_utils.hpp"
 
 namespace cece {
 struct CollectiveGateTestAccess {

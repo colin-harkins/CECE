@@ -233,8 +233,7 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh
             nodes(first + 3, 1) = north;
             offsets(cell) = static_cast<axis::index_t>(first);
             for (size_t v = 0; v < 4; ++v) indices(first + v) = static_cast<axis::index_t>(first + v);
-            areas(cell) = std::abs(east - west) * radians *
-                          (std::sin(std::max(south, north) * radians) - std::sin(std::min(south, north) * radians));
+            areas(cell) = std::abs(east - west) * radians * (std::sin(std::max(south, north) * radians) - std::sin(std::min(south, north) * radians));
         }
     }
     offsets(cells) = static_cast<axis::index_t>(cells * 4);
@@ -335,7 +334,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
             axis::topology::UnstructuredMesh<Kokkos::HostSpace> mesh(node_coords, conn_offsets, conn_indices,
-                                                                       axis::topology::CoordinateSystem::SphericalDeg);
+                                                                     axis::topology::CoordinateSystem::SphericalDeg);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -406,8 +405,8 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             vertices_on_cell_view = nullptr;
 
             size_t n_vertices = lat_vertices.size();
-            if (n_vertices == 0 || lon_vertices.size() != n_vertices || n_edges_on_cell.size() != static_cast<std::size_t>(n_cells) || max_edges < 3 ||
-                vertices_on_cell.size() != static_cast<std::size_t>(n_cells) * static_cast<std::size_t>(max_edges))
+            if (n_vertices == 0 || lon_vertices.size() != n_vertices || n_edges_on_cell.size() != static_cast<std::size_t>(n_cells) ||
+                max_edges < 3 || vertices_on_cell.size() != static_cast<std::size_t>(n_cells) * static_cast<std::size_t>(max_edges))
                 throw std::runtime_error("MPAS vertex and cell connectivity arrays have inconsistent dimensions");
 
             Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace> node_coords("node_coords", n_vertices, 2);
@@ -443,7 +442,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(offset);
 
             axis::topology::UnstructuredMesh<Kokkos::HostSpace> mesh(node_coords, conn_offsets, conn_indices,
-                                                                       axis::topology::CoordinateSystem::SphericalDeg);
+                                                                     axis::topology::CoordinateSystem::SphericalDeg);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -950,8 +949,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_band_mesh_curvilinear_
     // Keep model metadata aligned with the global curvilinear mesh. Since
     // corners are explicit, this policy does not reconstruct them; it declares
     // the model represented by that supplied corner lattice.
-    auto mesh = grid.to_unstructured(axis::topology::CornerPolicy::CurvilinearApproximate,
-                                     axis::topology::LongitudePeriodicity{false, 360.0, true});
+    auto mesh = grid.to_unstructured(axis::topology::CornerPolicy::CurvilinearApproximate, axis::topology::LongitudePeriodicity{false, 360.0, true});
     auto metadata = mesh.geometry_metadata();
     metadata.provenance = axis::topology::GeometryProvenance::Reconstructed;
     // Explicit corners suppress AXIS's center-layout auto-detection. Mirror
@@ -1083,7 +1081,6 @@ bool same_spherical_grid_coordinates(int nx, int ny, const std::vector<double>& 
     }
     return true;
 }
-
 
 bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const std::vector<double>& target_lons,
                        const std::vector<double>& target_lats, const std::string& map_algo, int j0, int j1, const std::string& src_gridspec_file,
@@ -1289,8 +1286,8 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
     if (nband <= 0) {
         // An empty rank still loads and assesses the complete endpoint
         // geometry. It merely skips local weight generation.
-        auto source_mesh = prepared_source.cells ? *prepared_source.cells
-                                                        : build_axis_mesh(plan.file_nx, plan.file_ny, 0, src_lons, src_lats, src_gridspec_file);
+        auto source_mesh =
+            prepared_source.cells ? *prepared_source.cells : build_axis_mesh(plan.file_nx, plan.file_ny, 0, src_lons, src_lats, src_gridspec_file);
         auto destination_mesh = (destination_has_gridspec || prepared_destination_settings.reconstruction != ReconstructionModel::None)
                                     ? *build_prepared_destination_geometry()->supplied_cells
                                     : build_axis_mesh(nx, ny, 0, target_lons, target_lats, dst_gridspec_file);
@@ -1314,8 +1311,8 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
     }
 
     // A. Build the (global) source mesh and the rank-local destination sub-mesh.
-    auto src_mesh = prepared_source.cells ? *prepared_source.cells
-                                                 : build_axis_mesh(plan.file_nx, plan.file_ny, 0, src_lons, src_lats, src_gridspec_file);
+    auto src_mesh =
+        prepared_source.cells ? *prepared_source.cells : build_axis_mesh(plan.file_nx, plan.file_ny, 0, src_lons, src_lats, src_gridspec_file);
 
     const bool curvilinear_target = (target_lons.size() == static_cast<size_t>(nx) * ny && ny > 1);
 
@@ -1471,7 +1468,7 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
 }
 
 bool publish_regrid_plan_if_ready(bool all_ranks_ready, const std::string& key, std::optional<RegridPlan>& candidate,
-                                 std::unordered_map<std::string, RegridPlan>& plans) {
+                                  std::unordered_map<std::string, RegridPlan>& plans) {
     if (!all_ranks_ready || !candidate || !candidate->built) return false;
     plans.insert_or_assign(key, std::move(*candidate));
     candidate.reset();

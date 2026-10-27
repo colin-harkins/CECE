@@ -184,7 +184,9 @@ RC_GTEST_PROP(StreamKeyExtends, Property5_ManifestFieldDiffersBothKeysDiffer, ()
 // ============================================================================
 RC_GTEST_PROP(StreamKeyExtends, Property5_StreamKeyIsHandleKeyPlusMapalgoPlusStreamGridspecFile, ()) {
     const StreamConfig cfg = *genStreamConfig();
-    const std::string expected = StreamKeyExtendsAccess::HKey(cfg) + "|" + cfg.mapalgo + "|" + cfg.input_gridspec_file + "|" + cfg.source_geometry.longitude_variable + "|" + cfg.source_geometry.latitude_variable + "|" + std::to_string(static_cast<int>(cfg.source_geometry.reconstruction));
+    const std::string expected = StreamKeyExtendsAccess::HKey(cfg) + "|" + cfg.mapalgo + "|" + cfg.input_gridspec_file + "|" +
+                                 cfg.source_geometry.longitude_variable + "|" + cfg.source_geometry.latitude_variable + "|" +
+                                 std::to_string(static_cast<int>(cfg.source_geometry.reconstruction));
     RC_ASSERT(StreamKeyExtendsAccess::SKey(cfg) == expected);
 }
 

@@ -302,8 +302,7 @@ std::string CeceDataIngestor::SerializeStreamYaml(const CeceDataConfig& config) 
         if (!stream.input_gridspec_file.empty()) oss << "    input_gridspec_file: \"" << stream.input_gridspec_file << "\"\n";
         if (!stream.longitude_variable.empty()) oss << "    longitude_variable: \"" << stream.longitude_variable << "\"\n";
         if (!stream.latitude_variable.empty()) oss << "    latitude_variable: \"" << stream.latitude_variable << "\"\n";
-        if (stream.geometry_reconstruction != "none")
-            oss << "    geometry_reconstruction: \"" << stream.geometry_reconstruction << "\"\n";
+        if (stream.geometry_reconstruction != "none") oss << "    geometry_reconstruction: \"" << stream.geometry_reconstruction << "\"\n";
 
         // Match TIDE test config field order
         oss << "    tax_mode: \"" << stream.taxmode << "\"\n";

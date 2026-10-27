@@ -721,9 +721,14 @@ class DataStreamConfig:
         ):
             _validate_string(getattr(self, key), key, allow_empty=True)
         if self.geometry_reconstruction not in {
-            "none", "rectilinear_midpoint", "gaussian_latlon", "curvilinear_approximate"
+            "none",
+            "rectilinear_midpoint",
+            "gaussian_latlon",
+            "curvilinear_approximate",
         }:
-            raise ValueError(f"Invalid geometry_reconstruction: {self.geometry_reconstruction}")
+            raise ValueError(
+                f"Invalid geometry_reconstruction: {self.geometry_reconstruction}"
+            )
 
     def _validate_local_time(self) -> None:
         if not isinstance(self.use_local_time, bool):
@@ -774,7 +779,9 @@ class DataStreamConfig:
         input_grid = values.get("input_gridspec_file", "")
         grid_alias = values.get("gridspec_file", "")
         if input_grid and grid_alias and input_grid != grid_alias:
-            raise ValueError(f"{where}: input_gridspec_file and gridspec_file specify different paths")
+            raise ValueError(
+                f"{where}: input_gridspec_file and gridspec_file specify different paths"
+            )
         files = values.get("file", [])
         if isinstance(files, str):
             files = [files]
@@ -984,9 +991,14 @@ class DriverConfig:
             _validate_string(getattr(self, key), f"driver.{key}", allow_empty=True)
         _validate_string(self.geometry_reconstruction, "driver.geometry_reconstruction")
         if self.geometry_reconstruction not in {
-            "none", "rectilinear_midpoint", "gaussian_latlon", "curvilinear_approximate"
+            "none",
+            "rectilinear_midpoint",
+            "gaussian_latlon",
+            "curvilinear_approximate",
         }:
-            raise ValueError(f"Invalid driver.geometry_reconstruction: {self.geometry_reconstruction}")
+            raise ValueError(
+                f"Invalid driver.geometry_reconstruction: {self.geometry_reconstruction}"
+            )
 
         if self.earthaccess_helper is not None:
             _validate_string(self.earthaccess_helper, "driver.earthaccess_helper")
@@ -1031,7 +1043,6 @@ class DriverConfig:
                 "longitude_variable",
                 "latitude_variable",
                 "geometry_reconstruction",
-
                 "earthaccess_helper",
                 "grid",
                 "stacking_refresh_interval_seconds",
@@ -1998,7 +2009,6 @@ class CeceConfig:
                 "longitude_variable": driver.longitude_variable,
                 "latitude_variable": driver.latitude_variable,
                 "geometry_reconstruction": driver.geometry_reconstruction,
-
                 "earthaccess_helper": driver.earthaccess_helper,
                 "grid": {
                     "grid_name": driver.grid.grid_name,

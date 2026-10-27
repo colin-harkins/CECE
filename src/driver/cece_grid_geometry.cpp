@@ -3,17 +3,18 @@
 
 #include "cece/cece_grid_geometry.hpp"
 
-#include "cece/cece_amio_utils.hpp"
+#include <amio/amio.h>
 
 #include <algorithm>
-#include <bit>
-#include <amio/amio.h>
 #include <axis/topology/structured_grid.hpp>
+#include <bit>
 #include <cctype>
 #include <cmath>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
+
+#include "cece/cece_amio_utils.hpp"
 
 namespace cece::io {
 
@@ -54,8 +55,7 @@ std::uint64_t grid_geometry_revision(const GridGeometry& geometry) {
         add(nodes.extent(0));
         add(nodes.extent(1));
         for (std::size_t node = 0; node < nodes.extent(0); ++node)
-            for (std::size_t dimension = 0; dimension < nodes.extent(1); ++dimension)
-                add(std::bit_cast<std::uint64_t>(nodes(node, dimension)));
+            for (std::size_t dimension = 0; dimension < nodes.extent(1); ++dimension) add(std::bit_cast<std::uint64_t>(nodes(node, dimension)));
         const auto offsets = cells.conn_offsets();
         add(offsets.extent(0));
         for (std::size_t i = 0; i < offsets.extent(0); ++i) add(static_cast<std::uint64_t>(offsets[i]));
@@ -263,7 +263,8 @@ GeometryPartition partition_grid_geometry(std::shared_ptr<const GridGeometry> ge
     const auto& global = *partition.parent->supplied_cells;
     const std::size_t expected_cells = static_cast<std::size_t>(partition.parent->nx) * partition.parent->ny;
     if (global.n_cells() != expected_cells)
-        throw RegridError(RegridStage::GeometryLoad, GridRole::Destination, {}, "cell mesh cannot be partitioned because cell order/count differs from grid layout",
+        throw RegridError(RegridStage::GeometryLoad, GridRole::Destination, {},
+                          "cell mesh cannot be partitioned because cell order/count differs from grid layout",
                           "Verify row-major field-to-cell correspondence before partitioning");
 
     const auto offsets = global.conn_offsets();
@@ -308,7 +309,7 @@ GeometryPartition partition_grid_geometry(std::shared_ptr<const GridGeometry> ge
         for (std::size_t k = 0; k < local_masks.size(); ++k) mask_view(k) = local_masks[k];
     }
     partition.cells.emplace(std::move(local_coords), std::move(conn_offsets), std::move(conn_indices), global.coord_system(), std::move(area_view),
-                           std::move(mask_view), partition.metadata);
+                            std::move(mask_view), partition.metadata);
     return partition;
 }
 
@@ -578,8 +579,8 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
     auto read_cf_bounds = [&](const Coordinate& coordinate, std::size_t expected, const char* role, std::vector<double>& values) {
         char bounds_name[256]{};
         std::size_t bounds_name_length = 0;
-        const auto attribute_status = amio_get_var_attribute_text(dataset, coordinate.name.c_str(), "bounds", bounds_name, sizeof(bounds_name),
-                                                                  &bounds_name_length);
+        const auto attribute_status =
+            amio_get_var_attribute_text(dataset, coordinate.name.c_str(), "bounds", bounds_name, sizeof(bounds_name), &bounds_name_length);
         if (attribute_status != AMIO_OK) return false;
         if (bounds_name_length == 0 || bounds_name_length >= sizeof(bounds_name))
             throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {}, std::string(role) + " bounds attribute is empty or too long",
@@ -599,7 +600,8 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
         const std::size_t element_size = cece::detail::amio_dtype_size(dtype);
         if (!valid_view || (!first_axis && !transposed_axis) || element_size == 0 || byte_count < expected * 2 * element_size) {
             amio_release_view(view);
-            throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {}, std::string(role) + " bounds have an unsupported shape or numeric type",
+            throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {},
+                              std::string(role) + " bounds have an unsupported shape or numeric type",
                               "Use a two-vertex CF bounds variable with one pair per coordinate");
         }
         double scale = 1.0, offset = 0.0, attribute_value = 0.0;
@@ -648,8 +650,8 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
                 while (east - west < -180.0) east += 360.0;
             }
             const double width = std::abs(east - west);
-            if (width <= coordinate_tolerance || width > 360.0 + coordinate_tolerance ||
-                center < std::min(west, east) - coordinate_tolerance || center > std::max(west, east) + coordinate_tolerance)
+            if (width <= coordinate_tolerance || width > 360.0 + coordinate_tolerance || center < std::min(west, east) - coordinate_tolerance ||
+                center > std::max(west, east) + coordinate_tolerance)
                 throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {}, "CF longitude center is outside its advertised bounds",
                                   "Check bounds ordering, coordinate units, and dateline convention");
         }
@@ -691,8 +693,10 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
             }
         }
         offsets(n_cells) = static_cast<axis::index_t>(4 * n_cells);
-        geometry.metadata = {axis::topology::GeometryProvenance::SourceAuthoritative, axis::topology::BoundaryModel::ConstantLatitude,
-                             axis::topology::AreaModel::ConstantLatitudeStrip, {false, 360.0, true}};
+        geometry.metadata = {axis::topology::GeometryProvenance::SourceAuthoritative,
+                             axis::topology::BoundaryModel::ConstantLatitude,
+                             axis::topology::AreaModel::ConstantLatitudeStrip,
+                             {false, 360.0, true}};
         geometry.has_explicit_bounds = true;
         geometry.has_cell_geometry = true;
         geometry.supplied_cells = std::make_shared<const axis::topology::UnstructuredMesh<Kokkos::HostSpace>>(
@@ -712,6 +716,5 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
     geometry.revision = grid_geometry_revision(geometry);
     return geometry;
 }
-
 
 }  // namespace cece::io

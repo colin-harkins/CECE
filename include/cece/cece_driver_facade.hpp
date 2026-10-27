@@ -44,9 +44,9 @@ struct StreamConfig {
     std::string input_var_name;       ///< resolved file var name (falls back to model name)
     std::string input_gridspec_file;  ///< stream["gridspec_file"]; "" => missing
     cece::io::GeometrySettings source_geometry;
-    std::string mapalgo = "consd";    ///< default matches current AdvanceTime
-    std::string cadence;              ///< "" => series (time-aware default)
-    int yearFirst = 0;                ///< 0 = unknown/climatology
+    std::string mapalgo = "consd";  ///< default matches current AdvanceTime
+    std::string cadence;            ///< "" => series (time-aware default)
+    int yearFirst = 0;              ///< 0 = unknown/climatology
     int yearLast = 0;
     int yearAlign = 0;
     std::string taxmode;               ///< "" defaults to cycle

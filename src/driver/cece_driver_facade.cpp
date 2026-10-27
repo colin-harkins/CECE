@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <axis/axis.hpp>
 #include <bit>
-#include <cmath>
 #include <cctype>
+#include <cmath>
 #include <conf/conf.hpp>
 #include <cstdint>
 #include <dagr/logging.hpp>
@@ -210,12 +210,17 @@ StreamConfig CeceDriverOrchestrator::BuildStreamConfig(const YAML::Node& stream,
     cfg.source_geometry.latitude_variable = stream["latitude_variable"].as<std::string>("");
     if (stream["geometry_reconstruction"]) {
         const std::string reconstruction = cece::to_lower(stream["geometry_reconstruction"].as<std::string>());
-        if (reconstruction == "none") cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::None;
-        else if (reconstruction == "rectilinear_midpoint") cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::RectilinearMidpoint;
-        else if (reconstruction == "gaussian_latlon") cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::GaussianLatLon;
-        else if (reconstruction == "curvilinear_approximate") cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::CurvilinearApproximate;
-        else throw std::invalid_argument("cece_data stream '" + stream["name"].as<std::string>("") +
-                                         "': unsupported geometry_reconstruction '" + reconstruction + "'");
+        if (reconstruction == "none")
+            cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::None;
+        else if (reconstruction == "rectilinear_midpoint")
+            cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::RectilinearMidpoint;
+        else if (reconstruction == "gaussian_latlon")
+            cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::GaussianLatLon;
+        else if (reconstruction == "curvilinear_approximate")
+            cfg.source_geometry.reconstruction = cece::io::ReconstructionModel::CurvilinearApproximate;
+        else
+            throw std::invalid_argument("cece_data stream '" + stream["name"].as<std::string>("") + "': unsupported geometry_reconstruction '" +
+                                        reconstruction + "'");
     }
     cfg.input_var_name = file_name;
     if (stream["mapalgo"]) {
@@ -450,7 +455,8 @@ std::string CeceDriverOrchestrator::GeometryPlanKey(const StreamConfig& cfg) con
     std::string canonical_method = cfg.mapalgo;
     std::transform(canonical_method.begin(), canonical_method.end(), canonical_method.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    if (canonical_method == "nn" || canonical_method == "nearestneighbor" || canonical_method == "nearest-neighbor") canonical_method = "nearest";
+    if (canonical_method == "nn" || canonical_method == "nearestneighbor" || canonical_method == "nearest-neighbor")
+        canonical_method = "nearest";
     else if (canonical_method == "consd" || canonical_method == "conservative" || canonical_method == "cons" || canonical_method == "consf" ||
              canonical_method == "redist" || canonical_method == "conservative1st")
         canonical_method = "conservative1st";
@@ -468,10 +474,10 @@ std::string CeceDriverOrchestrator::GeometryPlanKey(const StreamConfig& cfg) con
 
     std::ostringstream key;
     key << HandleKey(cfg) << "|source_gridspec=" << cfg.input_gridspec_file << "|method=" << canonical_method
-        << "|normalization=dstarea|unmapped=ignore|backend=host|partition=" << band_.j0 << ':' << band_.j1
-        << "|source_revision=" << source_revision << "|source_gridspec_revision=" << file_revision(cfg.input_gridspec_file)
-        << "|source_coordinates=" << cfg.source_geometry.longitude_variable << ':' << cfg.source_geometry.latitude_variable << ':'
-        << static_cast<int>(cfg.source_geometry.reconstruction) << "|destination_revision=" << destination_geometry_revision_;
+        << "|normalization=dstarea|unmapped=ignore|backend=host|partition=" << band_.j0 << ':' << band_.j1 << "|source_revision=" << source_revision
+        << "|source_gridspec_revision=" << file_revision(cfg.input_gridspec_file) << "|source_coordinates=" << cfg.source_geometry.longitude_variable
+        << ':' << cfg.source_geometry.latitude_variable << ':' << static_cast<int>(cfg.source_geometry.reconstruction)
+        << "|destination_revision=" << destination_geometry_revision_;
     return key.str();
 }
 
@@ -695,16 +701,15 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
             destination_geometry_settings_.gridspec_file = gridspec_file_;
             destination_geometry_settings_.longitude_variable = driver["longitude_variable"].as<std::string>("");
             destination_geometry_settings_.latitude_variable = driver["latitude_variable"].as<std::string>("");
-            destination_geometry_settings_.reconstruction =
-                io::parse_reconstruction_model(driver["geometry_reconstruction"].as<std::string>("none"));
+            destination_geometry_settings_.reconstruction = io::parse_reconstruction_model(driver["geometry_reconstruction"].as<std::string>("none"));
         }
     } catch (const YAML::Exception&) {
         // Match ResolveStreamConfigs' existing behavior for a missing/bad
         // configuration file; no destination overrides are applied.
     }
     destination_geometry_revision_ = coordinate_revision(target_lons_, target_lats_, nx_, ny_) + "|" + file_revision(gridspec_file_) + "|" +
-                                     destination_geometry_settings_.longitude_variable + ":" + destination_geometry_settings_.latitude_variable + ":" +
-                                     std::to_string(static_cast<int>(destination_geometry_settings_.reconstruction));
+                                     destination_geometry_settings_.longitude_variable + ":" + destination_geometry_settings_.latitude_variable +
+                                     ":" + std::to_string(static_cast<int>(destination_geometry_settings_.reconstruction));
 
     has_earthaccess_streams_ = HasEarthAccessStreams(config_file_);
     if (has_earthaccess_streams_) {
@@ -1408,9 +1413,9 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                 cece::io::RegridPlan plan;
                 bool local_plan_built = false;
                 try {
-                    local_plan_built = cece::io::build_regrid_plan(read_dataset, nx_, ny_, target_lons_, target_lats_, mapalgo, j0, j1,
-                                                                   input_gridspec_file, gridspec_file_, plan, cfg.source_geometry,
-                                                                   destination_geometry_settings_);
+                    local_plan_built =
+                        cece::io::build_regrid_plan(read_dataset, nx_, ny_, target_lons_, target_lats_, mapalgo, j0, j1, input_gridspec_file,
+                                                    gridspec_file_, plan, cfg.source_geometry, destination_geometry_settings_);
                 } catch (const std::exception& error) {
                     failure_detail = "regrid plan construction threw an exception: " + std::string(error.what());
                 } catch (...) {
@@ -1429,11 +1434,11 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                                                               "regrid-plan readiness for '" + var_name + "'", failure_detail);
             if (all_plans_ready && candidate_plan.has_value()) {
                 const std::string source_file_signature = file_revision(cfg.input_file_path);
-                const std::string geometry_cache_key = handle_key + "|" + cfg.input_gridspec_file + "|" + cfg.source_geometry.longitude_variable + "|" +
-                                                       cfg.source_geometry.latitude_variable + "|" +
+                const std::string geometry_cache_key = handle_key + "|" + cfg.input_gridspec_file + "|" + cfg.source_geometry.longitude_variable +
+                                                       "|" + cfg.source_geometry.latitude_variable + "|" +
                                                        std::to_string(static_cast<int>(cfg.source_geometry.reconstruction));
-                source_geometry_revisions_.insert_or_assign(
-                    geometry_cache_key, SourceGeometryRevision{source_file_signature, candidate_plan->source_geometry_revision});
+                source_geometry_revisions_.insert_or_assign(geometry_cache_key,
+                                                            SourceGeometryRevision{source_file_signature, candidate_plan->source_geometry_revision});
                 stream_key = GeometryPlanKey(cfg);
                 if (cece::io::publish_regrid_plan_if_ready(all_plans_ready, stream_key, candidate_plan, regrid_plans_)) {
                     plan_it = regrid_plans_.find(stream_key);
@@ -1653,12 +1658,8 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                     auto read_slab = [&](int t_idx, std::vector<double>& out, int& slab_nx, int& slab_ny) -> bool {
                         amio_view_handle slab_view = nullptr;
                         amio_bbox_t bbox{};
-                        const int fny_global_full = have_shape && var_shape.rank >= 2
-                                                        ? static_cast<int>(var_shape.extents[var_shape.rank - 2])
-                                                        : 0;
-                        const int fnx_global_full = have_shape && var_shape.rank >= 2
-                                                        ? static_cast<int>(var_shape.extents[var_shape.rank - 1])
-                                                        : 0;
+                        const int fny_global_full = have_shape && var_shape.rank >= 2 ? static_cast<int>(var_shape.extents[var_shape.rank - 2]) : 0;
+                        const int fnx_global_full = have_shape && var_shape.rank >= 2 ? static_cast<int>(var_shape.extents[var_shape.rank - 1]) : 0;
                         // Only use the row window when describe() agrees with the
                         // dimensions used to build the plan. Some backends expose
                         // a non-row-addressable view shape; those safely use the

@@ -95,14 +95,14 @@ struct RegridPlan {
     int src_j0 = 0;
     int src_rows = 0;
     std::uint64_t source_geometry_revision = 0;  ///< fingerprint of the loaded source snapshot
-    bool identity = false;  ///< copy source cells directly; no AXIS weights are applied
-    bool built = false;     ///< true once weights are generated
+    bool identity = false;                       ///< copy source cells directly; no AXIS weights are applied
+    bool built = false;                          ///< true once weights are generated
 };
 
 /// Commit a locally built candidate plan only after collective readiness has
 /// succeeded on every rank. Returns true only when the cache was updated.
 bool publish_regrid_plan_if_ready(bool all_ranks_ready, const std::string& key, std::optional<RegridPlan>& candidate,
-                                 std::unordered_map<std::string, RegridPlan>& plans);
+                                  std::unordered_map<std::string, RegridPlan>& plans);
 
 /// Return true when source and target longitude/latitude coordinates describe
 /// the same ordered spherical grid. Rectilinear (lon[nx], lat[ny]) and flattened curvilinear

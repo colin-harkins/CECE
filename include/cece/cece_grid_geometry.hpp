@@ -5,6 +5,7 @@
 #define CECE_GRID_GEOMETRY_HPP
 
 #include <amio/amio.h>
+
 #include <axis/topology/enums.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <cstdint>
