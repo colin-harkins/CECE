@@ -28,6 +28,48 @@ geometry. Conservative methods require usable source and destination cell
 boundaries with compatible geometry models. Center-only input remains valid for
 sample methods such as nearest-neighbor.
 
+### Geometry reconstruction policies
+
+`geometry_reconstruction` is an explicit declaration for center-only grids; it
+does not override usable bounds or gridspec geometry. The same values are
+available on a stream (source geometry) and under `driver` (destination
+geometry):
+
+| Value | Meaning and appropriate use |
+| --- | --- |
+| `none` | Default. Do not invent boundaries. Use this when cell corners/bounds are supplied, or when the selected method only needs centers. |
+| `rectilinear_midpoint` | Infer edges halfway between 1-D longitude and latitude centers, with outer edges extrapolated from the end spacing. Use only for separable rectilinear grids whose centers represent that geometry (for example, a regular 4x5 grid). |
+| `curvilinear_approximate` | Approximate corners from flattened 2-D curvilinear centers. This is approximate geometry and is not accepted as trusted geometry for conservative remapping. |
+| `gaussian_latlon` | Reserved for grids with Gaussian latitude spacing. The current loader does not reconstruct Gaussian bounds from centers; provide explicit bounds or an adapter instead. |
+
+For conservative mapping, prefer authoritative cell bounds or a supported
+gridspec. Reconstruction is suitable only when the declared model accurately
+describes the grid. In particular, do not choose midpoint reconstruction just
+because it makes a center-only file pass validation.
+
+### CF and UGRID metadata
+
+CECE automatically recognizes supported geometry conventions in NetCDF files;
+it does not require every file to have a separate `geometry_reconstruction`
+setting:
+
+- **CF rectilinear bounds:** 1-D `lon` and `lat` axes with `bounds` attributes
+  naming two-vertex bounds arrays are read automatically. Both axes must have
+  valid geographic units and bounds. Malformed or incomplete declared bounds
+  cause an error instead of silently falling back to inferred edges.
+- **UGRID/MPAS:** The mesh-topology route reads supported MPAS-style
+  `latVertex`/`lonVertex`, `verticesOnCell`, and `nEdgesOnCell` arrays and uses
+  their polygon connectivity. This is a specific supported layout, not a
+  promise to read every possible UGRID encoding.
+- **Other gridspecs:** CECE also has adapters for supported SCRIP, FV3/UFS
+  `grid_spec`, and FV3 supergrid layouts. Use the relevant gridspec as the
+  source or destination geometry.
+
+When a CF `bounds` attribute is present, CECE validates the named arrays; it
+does not ignore bad bounds and substitute a reconstruction policy. For other
+CF curvilinear bounds layouts or UGRID variants, use a supported gridspec
+adapter or provide a compatible explicit geometry file.
+
 For rectilinear source data, the shared geometry loader also follows each CF
 coordinate's `bounds` attribute when both longitude and latitude bounds are
 present as two-vertex arrays. These supplied cell bounds are retained even for

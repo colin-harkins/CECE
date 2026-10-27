@@ -170,10 +170,12 @@ The `grid` section defines the computational domain and resolution. It must be n
 For file-backed destination geometry, `driver.gridspec_file` selects the cell
 geometry file. Optional `driver.longitude_variable` and
 `driver.latitude_variable` override the center-coordinate variable names. Set
-`driver.geometry_reconstruction` to `rectilinear_midpoint`,
-`gaussian_latlon`, or `curvilinear_approximate` only when that declared model
-matches the grid. The default `none` does not infer boundaries from centers.
-Reconstruction settings also apply to a generated destination grid.
+`driver.geometry_reconstruction` only for center-only grids and only when the
+declared model matches the grid. The accepted values and their assumptions are
+described in [GRIDSPEC and geometry input](mesh_file_input.md#geometry-reconstruction-policies).
+The default `none` does not infer boundaries from centers. Reconstruction
+settings also apply to a generated destination grid. `gaussian_latlon` is
+currently reserved: the loader requires explicit Gaussian bounds or an adapter.
 
 Geometry handling has three stages: CECE loads ordered centers and any selected
 cell boundaries; it checks the selected method against both grids; then it
@@ -752,7 +754,7 @@ Configuration for data streams that read external emission inventories and auxil
 | `mapalgo` | String | Spatial regridding: `consd` (default), `bilinear`, `bicubic`, `nn`/`nearest`, `consf`, `redist`, or `passthrough`. `consf` and `redist` retain first-order conservative behavior. Sample methods use center coordinates; bilinear and bicubic require structured source stencils. Conservative methods require usable cell boundaries with compatible declared geometry models. `passthrough` requires identical dimensions and ordered source/target coordinates, then copies without AXIS regridding. |
 | `input_gridspec_file` | String | Optional source geometry file for this stream. `gridspec_file` is accepted as an alias; if both are set, they must match. This is separate from `driver.gridspec_file`, which describes the destination grid. |
 | `longitude_variable`, `latitude_variable` | String | Optional explicit source center coordinate variable names. When absent, CECE detects coordinates from supported conventional names. |
-| `geometry_reconstruction` | String | Optional declared source boundary policy: `none` (default), `rectilinear_midpoint`, `gaussian_latlon`, or `curvilinear_approximate`. Reconstruction is used only when its stated assumptions are satisfied. |
+| `geometry_reconstruction` | String | Optional declared source boundary policy: `none` (default), `rectilinear_midpoint`, `gaussian_latlon` (reserved; explicit bounds/adapter currently required), or `curvilinear_approximate` (approximate; not trusted for conservative remapping). See [policy assumptions](mesh_file_input.md#geometry-reconstruction-policies). |
 | `data_model` | String | (Optional) AMIO NetCDF data model for reads: `enhanced`, `classic`, or `auto`. Default behavior is auto (`enhanced` first, then `classic` fallback on backend open failure). |
 | `use_local_time` | Boolean | (Optional) With `cadence: weekly` and `tintalgo: nearest` only: each cell reads the weekly record of its **local** weekday instead of the UTC weekday. Requires `local_time.enabled` and a 7-record file. Default: `false`. See [Local-weekday weekly profiles](#local-weekday-weekly-profiles-use_local_time). |
 | `variables` | List | (Optional) Variable mappings between file and model. If omitted, null, or empty, the stream `name` is used for both names and the standalone driver logs a warning. A mapping may be a string shorthand or a map with a required `model` name and optional `file` name; omitted `file` defaults to `model`. |

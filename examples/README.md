@@ -68,6 +68,30 @@ All examples include these configurable sections:
 
 Grid configuration must be nested under `driver:` to take effect.
 
+### Cell boundaries and geometry reconstruction
+
+CECE reads supported cell boundaries automatically when the input provides
+them, including CF rectilinear `lon`/`lat` bounds and supported UGRID/MPAS mesh
+connectivity. Other supported SCRIP and FV3/UFS gridspec layouts are read by
+their geometry adapters. These paths need no `geometry_reconstruction` setting.
+
+For center-only files, reconstruction must be declared separately for each
+grid that needs cell boundaries: under `driver:` for the destination, and on a
+stream for its source. The available values are:
+
+- `none` (default): do not infer cell boundaries. Center-based methods such as
+  nearest-neighbor can still use the coordinates.
+- `rectilinear_midpoint`: infer edges from separable 1-D longitude/latitude
+  centers. Use for a known rectilinear grid such as MACCity 4x5.
+- `curvilinear_approximate`: estimate corners from 2-D curvilinear centers;
+  this approximate geometry is not supported for conservative remapping.
+- `gaussian_latlon`: reserved for a future Gaussian-boundary adapter; current
+  use requires explicit bounds or a supported grid adapter.
+
+Prefer file-provided bounds or a gridspec for conservative remapping. See
+[the geometry input guide](../docs/mesh_file_input.md#geometry-reconstruction-policies)
+for supported CF/UGRID forms and validation details.
+
 ### Data Stream Time Handling (`cece_data.streams[].cadence`)
 
 Each stream chooses how its file records are matched to the simulation date-time:
