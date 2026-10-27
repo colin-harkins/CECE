@@ -22,7 +22,8 @@ std::uint64_t grid_geometry_revision(const GridGeometry& geometry) {
     std::uint64_t hash = 1469598103934665603ULL;
     auto add = [&](std::uint64_t value) {
         for (int byte = 0; byte < 8; ++byte) {
-            hash ^= (value >> (byte * 8)) & 0xffU;
+            const unsigned int shift = static_cast<unsigned int>(byte * 8);
+            hash ^= (value >> shift) & 0xffULL;
             hash *= 1099511628211ULL;
         }
     };
@@ -637,8 +638,9 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
         const std::size_t n_cells = static_cast<std::size_t>(geometry.nx) * geometry.ny;
         constexpr double coordinate_tolerance = 1e-10;
         for (int i = 0; i < geometry.nx; ++i) {
-            double& west = geometry.corner_lon[2 * i];
-            double& east = geometry.corner_lon[2 * i + 1];
+            const std::size_t index = 2U * static_cast<std::size_t>(i);
+            double& west = geometry.corner_lon[index];
+            double& east = geometry.corner_lon[index + 1U];
             const double center = geometry.center_lon[static_cast<std::size_t>(i)];
             while (west - center > 180.0) west -= 360.0;
             while (west - center < -180.0) west += 360.0;
@@ -656,7 +658,8 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
                                   "Check bounds ordering, coordinate units, and dateline convention");
         }
         for (int j = 0; j < geometry.ny; ++j) {
-            const double south = geometry.corner_lat[2 * j], north = geometry.corner_lat[2 * j + 1];
+            const std::size_t index = 2U * static_cast<std::size_t>(j);
+            const double south = geometry.corner_lat[index], north = geometry.corner_lat[index + 1U];
             const double center = geometry.center_lat[static_cast<std::size_t>(j)];
             if (std::abs(north - south) <= coordinate_tolerance || center < std::min(south, north) - coordinate_tolerance ||
                 center > std::max(south, north) + coordinate_tolerance)
@@ -669,13 +672,15 @@ GridGeometry load_grid_geometry(amio_dataset_handle dataset, const GeometrySetti
         Kokkos::View<double*, Kokkos::HostSpace> areas("cf_bounds_areas", n_cells);
         constexpr double radians = 3.14159265358979323846 / 180.0;
         for (int j = 0; j < geometry.ny; ++j) {
-            const double lat0 = geometry.corner_lat[2 * j], lat1 = geometry.corner_lat[2 * j + 1];
+            const std::size_t lat_index = 2U * static_cast<std::size_t>(j);
+            const double lat0 = geometry.corner_lat[lat_index], lat1 = geometry.corner_lat[lat_index + 1U];
             if (!std::isfinite(lat0) || !std::isfinite(lat1) || std::abs(lat0) > 90.0 || std::abs(lat1) > 90.0)
                 throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {}, "CF latitude bounds are non-finite or outside [-90,90]",
                                   "Correct the latitude bounds or coordinate units");
             for (int i = 0; i < geometry.nx; ++i) {
                 const std::size_t cell = static_cast<std::size_t>(j) * geometry.nx + i;
-                const double lon0 = geometry.corner_lon[2 * i], lon1 = geometry.corner_lon[2 * i + 1];
+                const std::size_t lon_index = 2U * static_cast<std::size_t>(i);
+                const double lon0 = geometry.corner_lon[lon_index], lon1 = geometry.corner_lon[lon_index + 1U];
                 if (!std::isfinite(lon0) || !std::isfinite(lon1))
                     throw RegridError(RegridStage::GeometryLoad, GridRole::Source, {}, "CF longitude bounds are non-finite",
                                       "Correct the longitude bounds");

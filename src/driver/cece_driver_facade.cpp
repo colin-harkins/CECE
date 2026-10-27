@@ -50,7 +50,8 @@ std::string coordinate_revision(const std::vector<double>& longitude, const std:
     std::uint64_t hash = 1469598103934665603ULL;
     auto add = [&](std::uint64_t value) {
         for (int byte = 0; byte < 8; ++byte) {
-            hash ^= (value >> (byte * 8)) & 0xffU;
+            const unsigned int shift = static_cast<unsigned int>(byte * 8);
+            hash ^= (value >> shift) & 0xffULL;
             hash *= 1099511628211ULL;
         }
     };
@@ -703,9 +704,10 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
             destination_geometry_settings_.latitude_variable = driver["latitude_variable"].as<std::string>("");
             destination_geometry_settings_.reconstruction = io::parse_reconstruction_model(driver["geometry_reconstruction"].as<std::string>("none"));
         }
-    } catch (const YAML::Exception&) {
+    } catch (const YAML::Exception& error) {
         // Match ResolveStreamConfigs' existing behavior for a missing/bad
         // configuration file; no destination overrides are applied.
+        CECE_LOG_DEBUG("[DRIVER] Could not read destination geometry settings: " + std::string(error.what()));
     }
     destination_geometry_revision_ = coordinate_revision(target_lons_, target_lats_, nx_, ny_) + "|" + file_revision(gridspec_file_) + "|" +
                                      destination_geometry_settings_.longitude_variable + ":" + destination_geometry_settings_.latitude_variable +
