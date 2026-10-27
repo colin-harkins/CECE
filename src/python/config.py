@@ -616,6 +616,10 @@ class DataStreamConfig:
         Position of each time coordinate relative to the implied valid interval
         associated with the data. One of ``"auto"``, ``"start"``, ``"center"``,
         or ``"end"``. Default is ``"auto"``.
+    use_local_time : bool, optional
+        For ``cadence="weekly"`` with ``tintalgo="nearest"`` only: select each
+        cell's weekly record by its local weekday instead of the UTC weekday.
+        Requires ``local_time.enabled``. Default is ``False``.
 
     Examples
     --------
@@ -652,6 +656,7 @@ class DataStreamConfig:
     calendar: str = ""
     data_model: str = "auto"
     refresh_interval_seconds: int = 0
+    use_local_time: bool = False
 
     def validate(self) -> None:
         """
@@ -700,6 +705,7 @@ class DataStreamConfig:
             raise ValueError("yearLast must be >= yearFirst")
         if self.refresh_interval_seconds < 0:
             raise ValueError("refresh_interval_seconds must be non-negative")
+        self._validate_local_time()
         for key in (
             "meshfile",
             "input_gridspec_file",
@@ -718,6 +724,16 @@ class DataStreamConfig:
             "none", "rectilinear_midpoint", "gaussian_latlon", "curvilinear_approximate"
         }:
             raise ValueError(f"Invalid geometry_reconstruction: {self.geometry_reconstruction}")
+
+    def _validate_local_time(self) -> None:
+        if not isinstance(self.use_local_time, bool):
+            raise ValueError("use_local_time must be a boolean")
+        if not self.use_local_time:
+            return
+        if self.cadence != "weekly":
+            raise ValueError("use_local_time is only supported with cadence: weekly")
+        if self.tintalgo != "nearest":
+            raise ValueError("use_local_time requires tintalgo: nearest")
 
     @classmethod
     def from_dict(
@@ -752,6 +768,7 @@ class DataStreamConfig:
             "calendar",
             "data_model",
             "refresh_interval_seconds",
+            "use_local_time",
         }
         _reject_unknown_keys(values, allowed, where)
         input_grid = values.get("input_gridspec_file", "")
@@ -810,6 +827,7 @@ class DataStreamConfig:
             calendar=values.get("calendar", ""),
             data_model=normalized("data_model", "auto"),
             refresh_interval_seconds=values.get("refresh_interval_seconds", 0),
+            use_local_time=values.get("use_local_time", False),
         )
         try:
             result.validate()
@@ -860,6 +878,7 @@ class DataStreamConfig:
             "calendar": "",
             "data_model": "auto",
             "refresh_interval_seconds": 0,
+            "use_local_time": False,
         }
         for key, default in defaults.items():
             value = getattr(self, key)
@@ -1635,6 +1654,7 @@ class CeceConfig:
             "calendar",
             "data_model",
             "refresh_interval_seconds",
+            "use_local_time",
         }
         unknown_options = set(stream_options) - allowed_options
         if unknown_options:
@@ -1680,6 +1700,24 @@ class CeceConfig:
         _validate_string(name, "temporal profile name")
         _validate_temporal_factors(factors)
         self._temporal_profiles[name] = factors
+
+    def _local_time_disabled_errors(self) -> list[str]:
+        errors = [
+            f"species.{species_name}[{index}]: use_local_time is set "
+            "but local_time.enabled is false; enable the local_time "
+            "section or remove use_local_time from the layer"
+            for species_name, layers in self._species.items()
+            for index, layer in enumerate(layers)
+            if layer.use_local_time is True
+        ]
+        errors.extend(
+            f"cece_data.streams[{index}]: use_local_time is set "
+            "but local_time.enabled is false; enable the local_time "
+            "section or remove use_local_time from the stream"
+            for index, stream in enumerate(self._cece_data.get("streams", []))
+            if stream.use_local_time is True
+        )
+        return errors
 
     def validate(self) -> ValidationResult:  # noqa: C901
         """
@@ -1761,14 +1799,7 @@ class CeceConfig:
         capture("local_time", self._local_time.validate)
         capture("nuopc", self._nuopc.validate)
         if self._local_time.enabled is not True:
-            for species_name, layers in self._species.items():
-                for index, layer in enumerate(layers):
-                    if layer.use_local_time is True:
-                        errors.append(
-                            f"species.{species_name}[{index}]: use_local_time is set "
-                            "but local_time.enabled is false; enable the local_time "
-                            "section or remove use_local_time from the layer"
-                        )
+            errors.extend(self._local_time_disabled_errors())
 
         # Validate temporal cycles
         for section, cycles in (
