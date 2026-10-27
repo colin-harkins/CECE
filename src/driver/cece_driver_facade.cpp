@@ -700,6 +700,7 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
         const YAML::Node driver = root["driver"];
         if (driver) {
             destination_geometry_settings_.gridspec_file = gridspec_file_;
+            destination_geometry_settings_.named_grid = driver["grid"]["grid_name"].as<std::string>("");
             destination_geometry_settings_.longitude_variable = driver["longitude_variable"].as<std::string>("");
             destination_geometry_settings_.latitude_variable = driver["latitude_variable"].as<std::string>("");
             destination_geometry_settings_.reconstruction = io::parse_reconstruction_model(driver["geometry_reconstruction"].as<std::string>("none"));
@@ -710,8 +711,9 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
         CECE_LOG_DEBUG("[DRIVER] Could not read destination geometry settings: " + std::string(error.what()));
     }
     destination_geometry_revision_ = coordinate_revision(target_lons_, target_lats_, nx_, ny_) + "|" + file_revision(gridspec_file_) + "|" +
-                                     destination_geometry_settings_.longitude_variable + ":" + destination_geometry_settings_.latitude_variable +
-                                     ":" + std::to_string(static_cast<int>(destination_geometry_settings_.reconstruction));
+                                     destination_geometry_settings_.named_grid + ":" + destination_geometry_settings_.longitude_variable + ":" +
+                                     destination_geometry_settings_.latitude_variable + ":" +
+                                     std::to_string(static_cast<int>(destination_geometry_settings_.reconstruction));
 
     has_earthaccess_streams_ = HasEarthAccessStreams(config_file_);
     if (has_earthaccess_streams_) {

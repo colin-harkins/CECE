@@ -7,6 +7,7 @@
 #include <mpi.h>
 
 #include <algorithm>
+#include <axis/topology/mesh_builder.hpp>
 #include <cctype>
 #include <cmath>
 #include <fstream>
@@ -241,11 +242,15 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh
                                               axis::topology::BoundaryModel::ConstantLatitude,
                                               axis::topology::AreaModel::ConstantLatitudeStrip,
                                               {false, 360.0, true}};
-    return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(nodes, offsets, indices, axis::topology::CoordinateSystem::SphericalDeg, areas,
-                                                               Kokkos::View<int*, Kokkos::HostSpace>{}, metadata);
+    return axis::topology::make_unstructured(nodes, offsets, indices, axis::topology::CoordinateSystem::SphericalDeg, areas,
+                                             Kokkos::View<int*, Kokkos::HostSpace>{}, metadata);
 }
 
 axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, int nband, int j0, const std::string& gridspec_file) {
+    // CECE decodes source-specific file layouts through AMIO; AXIS owns mesh
+    // construction and validates each resulting node/CSR buffer via
+    // make_unstructured. Structured formats with centers and corners can use
+    // AXIS StructuredGrid instead (see build_axis_mesh below).
     // Build the gridspec manifest in memory and pass it directly to AMIO. Writing a
     // per-rank manifest file to a shared-disk workdir (e.g. Lustre) is unnecessary and
     // leaves stray files behind; the in-memory API avoids both the I/O and any race.
@@ -333,8 +338,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             }
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
-            axis::topology::UnstructuredMesh<Kokkos::HostSpace> mesh(node_coords, conn_offsets, conn_indices,
-                                                                     axis::topology::CoordinateSystem::SphericalDeg);
+            auto mesh = axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -441,8 +445,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             }
             conn_offsets(n_cells) = static_cast<axis::index_t>(offset);
 
-            axis::topology::UnstructuredMesh<Kokkos::HostSpace> mesh(node_coords, conn_offsets, conn_indices,
-                                                                     axis::topology::CoordinateSystem::SphericalDeg);
+            auto mesh = axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -516,8 +519,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
             close_amio();
-            return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(node_coords, conn_offsets, conn_indices,
-                                                                       axis::topology::CoordinateSystem::SphericalDeg);
+            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
         } catch (const std::exception& e) {
             close_amio();
             throw;
@@ -588,8 +590,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
             close_amio();
-            return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(node_coords, conn_offsets, conn_indices,
-                                                                       axis::topology::CoordinateSystem::SphericalDeg);
+            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
         } catch (const std::exception& e) {
             close_amio();
             throw;
@@ -734,8 +735,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
 
             close_amio();
 
-            return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(node_coords, conn_offsets, conn_indices,
-                                                                       axis::topology::CoordinateSystem::SphericalDeg);
+            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
 
         } catch (const std::exception& e) {
             // Resource cleanup is important if an exception gets thrown inside the try-block
@@ -817,8 +817,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int nx, int 
         }
         conn_offsets(n_cells) = static_cast<axis::index_t>(4 * n_cells);
 
-        return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(node_coords, conn_offsets, conn_indices,
-                                                                   axis::topology::CoordinateSystem::SphericalDeg);
+        return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
     }
 
     size_t n_cells = static_cast<size_t>(nx) * nband;
@@ -1017,8 +1016,8 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_band_mesh_curvilinear_
             for (std::size_t dim = 0; dim < nodes.extent(1); ++dim) node_view(node, dim) = nodes(node, dim);
         for (std::size_t k = 0; k < offsets.extent(0); ++k) offset_view(k) = offsets(k);
         for (std::size_t k = 0; k < indices.extent(0); ++k) index_view(k) = indices(k);
-        mesh = axis::topology::UnstructuredMesh<Kokkos::HostSpace>(std::move(node_view), std::move(offset_view), std::move(index_view),
-                                                                   mesh.coord_system(), std::move(areas), {}, metadata);
+        mesh = axis::topology::make_unstructured(std::move(node_view), std::move(offset_view), std::move(index_view), mesh.coord_system(),
+                                                 std::move(areas), Kokkos::View<int*, Kokkos::HostSpace>{}, metadata);
     }
     return mesh;
 }
@@ -1151,7 +1150,27 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
 
     const int nband = j1 - j0;
     const bool destination_has_gridspec = !dst_gridspec_file.empty() && dst_gridspec_file != "none" && dst_gridspec_file != "NONE";
+    std::shared_ptr<const GridGeometry> named_destination_geometry;
+    if (!prepared_destination_settings.named_grid.empty()) {
+        try {
+            auto named = load_named_grid_geometry(prepared_destination_settings.named_grid);
+            const auto same_axis = [](const std::vector<double>& a, const std::vector<double>& b) {
+                if (a.size() != b.size()) return false;
+                for (std::size_t i = 0; i < a.size(); ++i)
+                    if (std::abs(a[i] - b[i]) > 1e-10) return false;
+                return true;
+            };
+            if (named.nx == nx && named.ny == ny && same_axis(named.center_lon, target_lons) && same_axis(named.center_lat, target_lats))
+                named_destination_geometry = std::make_shared<const GridGeometry>(std::move(named));
+        } catch (const std::exception& error) {
+            CECE_LOG_DEBUG("[DRIVER] Could not use AXIS named destination mesh: " + std::string(error.what()));
+        }
+    }
+    const bool destination_has_named_grid = static_cast<bool>(named_destination_geometry);
     auto build_prepared_destination_geometry = [&]() {
+        if (destination_has_named_grid) {
+            return std::make_shared<GridGeometry>(*named_destination_geometry);
+        }
         auto global_geometry = std::make_shared<GridGeometry>();
         global_geometry->nx = nx;
         global_geometry->ny = ny;
@@ -1183,9 +1202,11 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
         return std::move(*partition.cells);
     };
     if ((method_settings.method == RegridMethod::Conservative1 || method_settings.method == RegridMethod::Conservative2) &&
-        (!source_has_prepared_cells || (!destination_has_gridspec && prepared_destination_settings.reconstruction == ReconstructionModel::None))) {
+        (!source_has_prepared_cells ||
+         (!destination_has_gridspec && !destination_has_named_grid && prepared_destination_settings.reconstruction == ReconstructionModel::None))) {
         const bool missing_source = !source_has_prepared_cells;
-        const bool missing_destination = !destination_has_gridspec && prepared_destination_settings.reconstruction == ReconstructionModel::None;
+        const bool missing_destination =
+            !destination_has_gridspec && !destination_has_named_grid && prepared_destination_settings.reconstruction == ReconstructionModel::None;
         const auto role = missing_source && missing_destination ? GridRole::Both : missing_source ? GridRole::Source : GridRole::Destination;
         throw RegridError(RegridStage::PrerequisiteValidation, role, method_settings.canonical_name,
                           "conservative mapping needs prepared cell boundaries; center-only geometry cannot be reconstructed implicitly",
@@ -1288,9 +1309,10 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
         // geometry. It merely skips local weight generation.
         auto source_mesh =
             prepared_source.cells ? *prepared_source.cells : build_axis_mesh(plan.file_nx, plan.file_ny, 0, src_lons, src_lats, src_gridspec_file);
-        auto destination_mesh = (destination_has_gridspec || prepared_destination_settings.reconstruction != ReconstructionModel::None)
-                                    ? *build_prepared_destination_geometry()->supplied_cells
-                                    : build_axis_mesh(nx, ny, 0, target_lons, target_lats, dst_gridspec_file);
+        auto destination_mesh =
+            (destination_has_gridspec || destination_has_named_grid || prepared_destination_settings.reconstruction != ReconstructionModel::None)
+                ? *build_prepared_destination_geometry()->supplied_cells
+                : build_axis_mesh(nx, ny, 0, target_lons, target_lats, dst_gridspec_file);
         GridGeometry source_geometry;
         source_geometry.nx = plan.file_nx;
         source_geometry.ny = plan.file_ny;
@@ -1379,7 +1401,7 @@ bool build_regrid_plan(amio_dataset_handle read_dataset, int nx, int ny, const s
     }
 
     axis::topology::UnstructuredMesh<Kokkos::HostSpace> dst_mesh =
-        (!destination_has_gridspec && prepared_destination_settings.reconstruction == ReconstructionModel::None)
+        (!destination_has_gridspec && !destination_has_named_grid && prepared_destination_settings.reconstruction == ReconstructionModel::None)
             ? (curvilinear_target ? build_band_mesh_curvilinear_with_global_corners(nx, j0, j1, full_center_lon, target_lats, band_lons, band_lats)
                                   : build_band_mesh_with_global_corners(nx, j0, j1, band_lons, target_lats))
             : build_prepared_destination_band();

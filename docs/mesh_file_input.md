@@ -35,12 +35,26 @@ does not override usable bounds or gridspec geometry. The same values are
 available on a stream (source geometry) and under `driver` (destination
 geometry):
 
+```yaml
+driver:
+  geometry_reconstruction: rectilinear_midpoint # destination grid
+
+cece_data:
+  streams:
+    - name: emissions
+      file: emissions.nc
+      geometry_reconstruction: rectilinear_midpoint # this stream's source grid
+```
+
+Choose one of these exact scalar values: `none`, `rectilinear_midpoint`,
+`gaussian_latlon`, and `curvilinear_approximate`. Their meanings are:
+
 | Value | Meaning and appropriate use |
 | --- | --- |
-| `none` | Default. Do not invent boundaries. Use this when cell corners/bounds are supplied, or when the selected method only needs centers. |
-| `rectilinear_midpoint` | Infer edges halfway between 1-D longitude and latitude centers, with outer edges extrapolated from the end spacing. Use only for separable rectilinear grids whose centers represent that geometry (for example, a regular 4x5 grid). |
-| `curvilinear_approximate` | Approximate corners from flattened 2-D curvilinear centers. This is approximate geometry and is not accepted as trusted geometry for conservative remapping. |
-| `gaussian_latlon` | Reserved for grids with Gaussian latitude spacing. The current loader does not reconstruct Gaussian bounds from centers; provide explicit bounds or an adapter instead. |
+| `none` | Default. Do not infer boundaries. Supplied bounds/gridspec geometry are still used; center-based methods can work without cell boundaries. |
+| `rectilinear_midpoint` | Infer edges halfway between separable 1-D longitude and latitude centers; extrapolate the outer edges from end spacing. For known rectilinear grids such as MACCity 4x5. |
+| `gaussian_latlon` | Declares Gaussian latitude-band geometry. For a named `F<N>` destination grid, AXIS `NamedGridRegistry` already supplies its authoritative mesh, so this option is unnecessary. For other center-only grids, Gaussian weights or explicit bounds must be supplied by a supported geometry source; this setting alone cannot derive them. |
+| `curvilinear_approximate` | Approximate corners from flattened 2-D curvilinear centers. Approximate only; not trusted for conservative remapping. |
 
 For conservative mapping, prefer authoritative cell bounds or a supported
 gridspec. Reconstruction is suitable only when the declared model accurately

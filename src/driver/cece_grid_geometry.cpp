@@ -6,10 +6,14 @@
 #include <amio/amio.h>
 
 #include <algorithm>
+#include <axis/topology/mesh_builder.hpp>
+#include <axis/topology/mesh_factory.hpp>
+#include <axis/topology/named_grid_registry.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <bit>
 #include <cctype>
 #include <cmath>
+#include <mutex>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
@@ -109,6 +113,95 @@ ReconstructionModel parse_reconstruction_model(const std::string& name) {
     if (value == "gaussian_latlon") return ReconstructionModel::GaussianLatLon;
     if (value == "curvilinear_approximate") return ReconstructionModel::CurvilinearApproximate;
     throw std::invalid_argument("unsupported geometry reconstruction policy '" + name + "'");
+}
+
+static GridGeometry generate_named_grid_geometry(const std::string& name) {
+    const auto parsed = axis::topology::NamedGridRegistry::parse(name);
+    int nx = 0;
+    int ny = 0;
+    if (parsed.family == 'F') {
+        nx = 4 * parsed.number;
+        ny = 2 * parsed.number;
+    } else if (parsed.family == 'R') {
+        nx = 4 * parsed.number - 1;
+        ny = 2 * parsed.number - 1;
+    } else {
+        throw std::invalid_argument("named target grid '" + name + "' is not a supported structured CECE grid");
+    }
+
+    // AXIS owns named-grid mesh creation and its authoritative Gaussian/regular
+    // cell geometry. Keep this exact mesh; only derive coordinate axes needed
+    // by CECE's existing field and writer interfaces.
+    auto generated = axis::topology::MeshFactory::from_named<Kokkos::HostSpace>(name);
+    const std::size_t n_cells = static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+    if (generated.n_cells() != n_cells) {
+        throw std::invalid_argument("AXIS named grid '" + name + "' generated " + std::to_string(generated.n_cells()) + " cells; expected " +
+                                    std::to_string(n_cells));
+    }
+
+    const auto offsets = generated.conn_offsets();
+    const auto indices = generated.conn_indices();
+    const auto nodes = generated.node_coords();
+    std::vector<double> cell_lon(n_cells), cell_lat(n_cells);
+    for (std::size_t cell = 0; cell < n_cells; ++cell) {
+        const std::size_t first = static_cast<std::size_t>(offsets(cell));
+        const std::size_t last = static_cast<std::size_t>(offsets(cell + 1));
+        if (last - first < 3) throw std::invalid_argument("AXIS named grid contains a cell with fewer than three vertices");
+        const double anchor = nodes(static_cast<std::size_t>(indices(first)), 0);
+        double lon_sum = 0.0;
+        double sin_lat_sum = 0.0;
+        for (std::size_t k = first; k < last; ++k) {
+            const std::size_t vertex = static_cast<std::size_t>(indices(k));
+            double lon = nodes(vertex, 0);
+            while (lon - anchor > 180.0) lon -= 360.0;
+            while (lon - anchor < -180.0) lon += 360.0;
+            lon_sum += lon;
+            sin_lat_sum += std::sin(nodes(vertex, 1) * M_PI / 180.0);
+        }
+        const double arity = static_cast<double>(last - first);
+        double center_lon = std::fmod(lon_sum / arity + 180.0, 360.0);
+        if (center_lon < 0.0) center_lon += 360.0;
+        cell_lon[cell] = center_lon - 180.0;
+        cell_lat[cell] = std::asin(std::clamp(sin_lat_sum / arity, -1.0, 1.0)) * 180.0 / M_PI;
+    }
+
+    GridGeometry result;
+    result.nx = nx;
+    result.ny = ny;
+    result.center_lon.resize(static_cast<std::size_t>(nx));
+    result.center_lat.resize(static_cast<std::size_t>(ny));
+    for (int j = 0; j < ny; ++j) {
+        const std::size_t row = static_cast<std::size_t>(j) * nx;
+        result.center_lat[static_cast<std::size_t>(j)] = cell_lat[row];
+        for (int i = 0; i < nx; ++i) {
+            const std::size_t ordered = row + static_cast<std::size_t>(i);
+            if (j == 0)
+                result.center_lon[static_cast<std::size_t>(i)] = cell_lon[ordered];
+            else if (std::abs(result.center_lon[static_cast<std::size_t>(i)] - cell_lon[ordered]) > 1e-10)
+                throw std::invalid_argument("AXIS named grid '" + name + "' is not a separable rectilinear grid");
+        }
+    }
+    result.metadata = generated.geometry_metadata();
+    result.supplied_cells = std::make_shared<const axis::topology::UnstructuredMesh<Kokkos::HostSpace>>(std::move(generated));
+    result.has_cell_geometry = true;
+    result.provenance = "AXIS NamedGridRegistry:" + name;
+    result.revision = grid_geometry_revision(result);
+    return result;
+}
+
+GridGeometry load_named_grid_geometry(const std::string& name) {
+    // GridSpec resolution and the driver regrid path both request this value.
+    // Share the AXIS mesh so it is generated once and never reconstructed from
+    // center coordinates on the CECE side.
+    static std::mutex cache_mutex;
+    static std::unordered_map<std::string, GridGeometry> cache;
+    std::lock_guard<std::mutex> lock(cache_mutex);
+    const auto cached = cache.find(name);
+    if (cached != cache.end()) return cached->second;
+    auto generated = generate_named_grid_geometry(name);
+    const auto [entry, inserted] = cache.emplace(name, std::move(generated));
+    (void)inserted;
+    return entry->second;
 }
 
 RegridError::RegridError(RegridStage stage, GridRole role, std::string method, std::string reason, std::string correction)
@@ -309,8 +402,8 @@ GeometryPartition partition_grid_geometry(std::shared_ptr<const GridGeometry> ge
         mask_view = Kokkos::View<int*, Kokkos::HostSpace>("geometry_partition_mask", local_masks.size());
         for (std::size_t k = 0; k < local_masks.size(); ++k) mask_view(k) = local_masks[k];
     }
-    partition.cells.emplace(std::move(local_coords), std::move(conn_offsets), std::move(conn_indices), global.coord_system(), std::move(area_view),
-                            std::move(mask_view), partition.metadata);
+    partition.cells.emplace(axis::topology::make_unstructured(std::move(local_coords), std::move(conn_offsets), std::move(conn_indices),
+                                                              global.coord_system(), std::move(area_view), std::move(mask_view), partition.metadata));
     return partition;
 }
 

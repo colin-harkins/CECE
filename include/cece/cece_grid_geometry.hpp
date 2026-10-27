@@ -23,6 +23,7 @@ ReconstructionModel parse_reconstruction_model(const std::string& name);
 /// Geometry choices are deliberately independent of the interpolation method.
 struct GeometrySettings {
     std::string gridspec_file;
+    std::string named_grid;
     std::string longitude_variable;
     std::string latitude_variable;
     ReconstructionModel reconstruction{ReconstructionModel::None};
@@ -86,6 +87,10 @@ struct GridGeometry {
     std::uint64_t revision{0};
     std::string provenance;
 };
+
+/// Generate a supported named target grid through AXIS, retaining its
+/// authoritative cell mesh and returning center coordinates in matching order.
+GridGeometry load_named_grid_geometry(const std::string& name);
 
 /// Deterministic fingerprint of the owned geometry snapshot, including ordered
 /// coordinates, bounds, masks, and model/provenance metadata.
