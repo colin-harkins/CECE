@@ -31,6 +31,8 @@ coverage/
 
 # Generated / large runtime artifacts
 *.nc
+*.nccf
+*.grib2
 *.log
 *.tmp
 *.temp
@@ -51,6 +53,9 @@ Thumbs.db
 # Spec-kit / AI working files
 .specify/
 specs/
+superpowers/
+.superpowers/
+.gemini/
 .kiro/
 .github/agents/
 .github/prompts/

@@ -1,77 +1,42 @@
-#include <amio/amio.h>
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) HELM Project Contributors
+
+/**
+ * @file main.cpp
+ * @brief CECE C++ standalone driver — thin adapter over the shared
+ * simulation core.
+ *
+ * All lifecycle sequencing, export-field registration, the time convention
+ * (ingest at step start, stamp at step end), and teardown live behind the
+ * cece_sim_* C ABI (src/driver/cece_simulation.cpp), which the NUOPC cap
+ * drives identically. This file only: initializes the runtime environment,
+ * resolves the target grid from YAML (GridSpec::from_yaml), and runs the
+ * step loop until the shared core reports completion. The two drivers differ
+ * ONLY in how they produce the GridSpec.
+ */
+
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-#include <axis/topology/named_grid_registry.hpp>
 #include <conf/conf.hpp>
 #include <halo/communicator.hpp>
 #include <halo/environment.hpp>
 #include <iostream>
-#include <memory>
-#include <sstream>
 #include <string>
 #include <tick/tick.hpp>
-#include <unordered_map>
-#include <vector>
 
-#include "cece/cece_band_decomposition.hpp"
-#include "cece/cece_config.hpp"
-#include "cece/cece_driver_facade.hpp"
 #include "cece/cece_fatal.hpp"
 #include "cece/cece_logger.hpp"
-#include "cece/cece_regridder_utils.hpp"
+#include "cece/cece_sim_c_abi.h"
+#include "cece/cece_simulation.hpp"
 
-namespace {
-
-constexpr inline double wrap_longitude(double lon) {
-    if (lon >= 180.0) {
-        return lon - 360.0;
-    }
-    if (lon < -180.0) {
-        return lon + 360.0;
-    }
-    return lon;
-}
-
-// Build the in-memory AMIO coordinate-manifest YAML for reading lon/lat out
-// of `path`. Kept as a named helper so the manifest schema (backend, staging
-// pool, worker pool, prefetch tuning) lives in exactly one place; the call
-// site in main() only opens/reads with the returned string.
-std::string BuildCoordinateManifest(const std::string& path) {
-    std::ostringstream manifest;
-    manifest << "backend: netcdf4\n"
-             << "path: " << path << "\n"
-             << "data_model: enhanced\n"
-             << "staging_pool:\n"
-             << "  buffer_count: 16\n"
-             << "  buffer_capacity_bytes: 33554432\n"
-             << "worker_pool:\n"
-             << "  threads: 1\n"
-             << "prefetch:\n"
-             << "  depth: 4\n"
-             << "  read_timeout_s: 60\n"
-             << "staging_timeout_ms: 10000\n";
-    return manifest.str();
-}
-
-}  // namespace
-
-// CECE Core C-Linkage Lifecycle functions
+// Run-logging entry points (core C ABI, unchanged). The shared core re-invokes
+// both during cece_sim_create; the redirect, banner, and path are idempotent,
+// but the banner must appear before grid resolution, so the driver calls them
+// first.
 extern "C" {
 void cece_set_config_file_path(const char* config_path, int path_len);
 void cece_run_log_setup(const char* config_path, int path_len);
-void cece_core_initialize_p1(void** data_ptr_ptr, int* rc);
-void cece_core_realize(void* data_ptr, int* rc);
-void cece_core_initialize_p2(void* data_ptr, int* nx, int* ny, int* nz, int* rc);
-void cece_core_run(void* data_ptr, int hour, int day_of_week, int* rc);
-void cece_core_finalize(void* data_ptr, int* rc);
-void cece_core_writer_initialize(void* data_ptr, int nx, int ny, int nz, const char* start_time_iso8601, int start_time_len, int mpi_comm_f, int* rc);
-void cece_core_writer_initialize_with_coords(void* data_ptr, int nx, int ny, int nz, const double* lon_coords, int lon_len, const double* lat_coords,
-                                             int lat_len, const char* start_time_iso8601, int start_time_len, int mpi_comm_f, int* rc);
-void cece_core_local_time_init(void* data_ptr, int nx, int ny, int nz, const double* lon_coords, int lon_len, const double* lat_coords, int lat_len,
-                               int mpi_comm_f, int* rc);
-void cece_core_write_step(void* data_ptr, double time_seconds, int step_index, int* rc);
-void cece_core_set_export_field(void* data_ptr, const char* name, int name_len, const double* field_data, int nx, int ny, int nz, int* rc);
 }
 
 int main(int argc, char* argv[]) {
@@ -113,360 +78,120 @@ int main(int argc, char* argv[]) {
         // Set config file path dynamically
         cece_set_config_file_path(config_file.c_str(), static_cast<int>(config_file.length()));
 
-        // A. Grid Dimensions
-        int nx = 0;
-        int ny = 0;
-        int nz = 1;
-        std::string grid_name = "";
-        if (config.has("driver.grid")) {
-            nz = config.get_or("driver.grid.nz", 1);
-            grid_name = config.get_or<std::string>("driver.grid.grid_name", "");
-            if (grid_name.empty()) {
-                nx = config.get_or("driver.grid.nx", 0);
-                ny = config.get_or("driver.grid.ny", 0);
-            } else {
-                try {
-                    auto parsed = axis::topology::NamedGridRegistry::parse(grid_name);
-                    if (parsed.family == 'F' || parsed.family == 'R') {
-                        int expected_nx = 4 * parsed.number;
-                        int expected_ny = 2 * parsed.number;
-
-                        int declared_nx = config.get_or("driver.grid.nx", 0);
-                        int declared_ny = config.get_or("driver.grid.ny", 0);
-                        if (declared_nx != 0 && declared_ny != 0) {
-                            if (declared_nx != expected_nx || declared_ny != expected_ny) {
-                                CECE_LOG_ERROR("Grid dimensions nx=" + std::to_string(declared_nx) + ", ny=" + std::to_string(declared_ny) +
-                                               " do not match the expected dimensions for Named Grid " + grid_name + " (" +
-                                               std::to_string(expected_nx) + "x" + std::to_string(expected_ny) + ")!");
-                                return -1;
-                            }
-                        }
-                        nx = expected_nx;
-                        ny = expected_ny;
-                    } else {
-                        CECE_LOG_ERROR(
-                            "Only regular Gaussian grids (family 'F', e.g. 'F360') and regular lat-lon grids (family 'R', e.g. "
-                            "'R360') are currently supported as structured CECE target grids.");
-                        return -1;
-                    }
-                } catch (const std::exception& e) {
-                    CECE_LOG_ERROR("Failed to parse named grid '" + grid_name + "': " + e.what());
-                    return -1;
-                }
-            }
-        }
-
-        if (nx <= 0 || ny <= 0 || nz <= 0) {
-            CECE_LOG_ERROR(
-                "driver.grid.nx, driver.grid.ny, and driver.grid.nz must be positive, or "
-                "driver.grid.grid_name must specify a supported named grid.");
+        // 3. Resolve the target grid: named regular grids (F/R), an explicit or
+        //    stream-inferred gridspec file read through AMIO, or uniform extents
+        //    from driver.grid. This is the ONLY part of the driver that differs
+        //    from the NUOPC cap, which resolves a GridSpec from an ESMF
+        //    Grid/Mesh instead. Throws std::invalid_argument with a named
+        //    diagnostic on any failure — never a silent fallback.
+        cece::GridSpec grid_spec;
+        try {
+            grid_spec = cece::GridSpec::from_yaml(config_file, config);
+        } catch (const std::exception& e) {
+            cece::LogFatal(std::string{"[DRIVER FATAL] (rank "} + std::to_string(my_rank) + ") grid resolution failed: " + e.what());
+            Kokkos::finalize();
+            MPI_Finalize();
             return -1;
         }
 
-        CECE_LOG_DEBUG("[DRIVER] Parsed nx = " + std::to_string(nx) + ", ny = " + std::to_string(ny) + ", grid_name = '" + grid_name + "'");
+        CECE_LOG_DEBUG("[DRIVER] Resolved grid nx = " + std::to_string(grid_spec.nx) + ", ny = " + std::to_string(grid_spec.ny) +
+                       ", nz = " + std::to_string(grid_spec.nz));
 
-        // B. Simulation Clock Timing
-        std::string start_time_str = config.get_string("driver.start_time");
-        std::string end_time_str = config.get_string("driver.end_time");
-        int timestep_seconds = config.get_int("driver.timestep_seconds");
+        // 4. Simulation clock (driver-side): the loop steps from start_time to
+        //    end_time in timestep_seconds increments. The shared core owns the
+        //    authoritative physics calendar; these values only select which
+        //    instants to ingest/stamp and when to stop.
+        const std::string start_time_str = config.get_string("driver.start_time");
+        const std::string end_time_str = config.get_string("driver.end_time");
+        const int timestep_seconds = config.get_int("driver.timestep_seconds");
 
-        // 3. Initialize TICK Clock
         tick::Gregorian_Calendar cal;
-        tick::Time_Point sim_time = cal.to_time_point(tick::parse_iso8601(start_time_str));
-        tick::Time_Point end_time = cal.to_time_point(tick::parse_iso8601(end_time_str));
-        tick::Duration dt = tick::seconds(timestep_seconds);
+        tick::Time_Point step_start = cal.to_time_point(tick::parse_iso8601(start_time_str));
+        const tick::Time_Point end_time = cal.to_time_point(tick::parse_iso8601(end_time_str));
+        const tick::Duration dt = tick::seconds(timestep_seconds);
 
-        // 4. Initialize the CECE Compute Engine via C-linkage interface
-        void* cece_data_ptr = nullptr;
+        // 5. Build the simulation through the shared C ABI: core init ->
+        //    export-field registration -> driver orchestrator -> writer.
+        CeceGridSpec c_grid{};
+        c_grid.nx = grid_spec.nx;
+        c_grid.ny = grid_spec.ny;
+        c_grid.nz = grid_spec.nz;
+        // cece::GridTopology and CeceGridTopology share the same enumerants
+        // in the same order (Rectilinear=0, Curvilinear=1, Unstructured=2).
+        c_grid.topology = static_cast<int>(grid_spec.topology);
+        c_grid.lon_coords = grid_spec.lon_coords.data();
+        c_grid.lon_len = static_cast<int>(grid_spec.lon_coords.size());
+        c_grid.lat_coords = grid_spec.lat_coords.data();
+        c_grid.lat_len = static_cast<int>(grid_spec.lat_coords.size());
+        c_grid.gridspec_file = grid_spec.gridspec_file.empty() ? nullptr : grid_spec.gridspec_file.c_str();
+        c_grid.gridspec_file_len = static_cast<int>(grid_spec.gridspec_file.size());
+
+        CeceSimulation* sim = nullptr;
         int rc = 0;
-
-        // Phase 1: Allocate internal structures (StackingEngine, DiagnosticManager)
-        cece_core_initialize_p1(&cece_data_ptr, &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_initialize_p1 failed with rc=" + std::to_string(rc));
-            return rc;
+        cece_sim_create(config_file.c_str(), static_cast<int>(config_file.length()), &c_grid, MPI_Comm_c2f(MPI_COMM_WORLD), &sim, &rc);
+        if (rc < 0 || sim == nullptr) {
+            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_sim_create failed with rc=" + std::to_string(rc));
+            Kokkos::finalize();
+            MPI_Finalize();
+            return rc < 0 ? rc : -1;
         }
 
-        // Realize: Validate and lock configuration
-        cece_core_realize(cece_data_ptr, &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_realize failed with rc=" + std::to_string(rc));
-            return rc;
-        }
-
-        // Phase 2: Complete grid-binding (dynamically sized)
-        cece_core_initialize_p2(cece_data_ptr, &nx, &ny, &nz, &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_initialize_p2 failed with rc=" + std::to_string(rc));
-            return rc;
-        }
-
-        // Register the export fields configured for output with persistent
-        // memory buffers, via the parsed config — the single authoritative
-        // interpretation of output.fields. Data fields only: the collection
-        // also carries the writer-managed coordinate variables.
-        std::unordered_map<std::string, std::vector<double>> export_fields_mem;
-        const cece::CeceConfig parsed_config = cece::ParseConfig(config_file);
-
-        // Compute this rank's latitude band once. Export buffers are band-local
-        // (nx x ny_local x nz): the core writes back only the rank's band via
-        // SyncAndCopyState, and the writer assembles the global field at output
-        // time. On a single rank (or uninitialized MPI) ny_local == ny, so this
-        // is byte-identical to the replicated allocation.
-        const cece::BandDecomposition band = cece::BandDecomposition::compute(ny, MPI_COMM_WORLD);
-
-        for (const cece::CeceOutputField& field : parsed_config.output_config.fields.GetDataFields()) {
-            export_fields_mem[field.name] = std::vector<double>(static_cast<std::size_t>(nx) * band.ny_local * nz, 0.0);
-            cece_core_set_export_field(cece_data_ptr, field.name.c_str(), static_cast<int>(field.name.length()), export_fields_mem[field.name].data(),
-                                       nx, band.ny_local, nz, &rc);
-            if (rc < 0) {
-                cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_set_export_field failed for '" + field.name +
-                               "' with rc=" + std::to_string(rc));
-                return rc;
-            }
-        }
-
-        // Setup CECE grid coordinate arrays (either generated dynamically from NamedGridRegistry, or calculated uniformly)
-        std::vector<double> file_lons(nx, 0.0);
-        std::vector<double> file_lats(ny == 1 ? nx : ny, 0.0);
-        bool has_file_coords = false;
-
-        if (!grid_name.empty()) {
-            try {
-                auto mesh = axis::topology::NamedGridRegistry::generate<Kokkos::HostSpace>(grid_name);
-                auto coords = mesh.node_coords();
-                for (int i = 0; i < nx; ++i) {
-                    file_lons[i] = wrap_longitude(coords(i, 0));
-                }
-                for (int j = 0; j < ny; ++j) {
-                    file_lats[j] = coords(j * nx, 1);
-                }
-                has_file_coords = true;
-            } catch (const std::exception& e) {
-                CECE_LOG_ERROR("Failed to retrieve coordinates from named grid '" + grid_name + "': " + e.what());
-                return -1;
-            }
-        } else {
-            bool loaded_from_file = false;
-            bool is_explicit_gridspec = false;
-            std::string input_file_path = "";
-            auto gridspec_opt = config.try_string("driver.gridspec_file");
-            if (gridspec_opt.has_value() && !gridspec_opt->empty() && *gridspec_opt != "none" && *gridspec_opt != "NONE") {
-                input_file_path = *gridspec_opt;
-                is_explicit_gridspec = true;
-            }
-            if (input_file_path.empty() && config.has("cece_data.streams")) {
-                auto streams = config.at("cece_data.streams");
-                if (streams.size() > 0) {
-                    auto first_stream = streams[static_cast<std::size_t>(0)];
-                    auto file_val = first_stream["file"];
-                    if (file_val.kind() == conf::Node_Kind::Sequence) {
-                        if (file_val.size() != 1) {
-                            CECE_LOG_ERROR("cece_data.streams[0].file: the standalone driver reads one file per stream; got a list of " +
-                                           std::to_string(file_val.size()) + " files");
-                            return -1;
-                        }
-                        input_file_path = file_val[static_cast<std::size_t>(0)].as_string();
-                    } else if (file_val.is_defined()) {
-                        input_file_path = file_val.as_string();
-                    }
-                }
-            }
-
-            if (!input_file_path.empty()) {
-                // Build the coordinate manifest in memory and pass it directly to AMIO.
-                // Writing it to a shared-disk file (e.g. Lustre) races when multiple MPI
-                // ranks per node truncate/rewrite the same path concurrently, which
-                // produces torn reads (empty/partial YAML) and spurious open failures.
-                const std::string coord_manifest_content = BuildCoordinateManifest(input_file_path);
-
-                int file_nx = 0;
-                int file_ny = 0;
-                std::vector<double> file_lon_coords;
-                std::vector<double> file_lat_coords;
-                amio_core_handle coord_core = nullptr;
-                amio_dataset_handle coord_dataset = nullptr;
-                amio_status_t amio_rc = amio_init_from_string(coord_manifest_content.c_str(), "yaml", &coord_core);
-                if (amio_rc != AMIO_OK) {
-                    CECE_LOG_ERROR(std::string("amio_init_from_string failed for coordinate manifest: ") + amio_strerror(amio_rc));
-                } else {
-                    amio_rc = amio_open_dataset_from_string(coord_core, coord_manifest_content.c_str(), "yaml", AMIO_MODE_READ, &coord_dataset);
-                    if (amio_rc != AMIO_OK) {
-                        CECE_LOG_ERROR("amio_open_dataset_from_string failed for dataset '" + input_file_path + "': " + amio_strerror(amio_rc));
-                    } else {
-                        try {
-                            cece::io::GeometrySettings geometry_settings;
-                            if (is_explicit_gridspec) geometry_settings.gridspec_file = input_file_path;
-                            geometry_settings.longitude_variable = config.try_string("driver.longitude_variable").value_or("");
-                            geometry_settings.latitude_variable = config.try_string("driver.latitude_variable").value_or("");
-                            const auto geometry = cece::io::load_grid_geometry(coord_dataset, geometry_settings);
-                            file_nx = geometry.nx;
-                            file_ny = geometry.ny;
-                            file_lon_coords = geometry.center_lon;
-                            file_lat_coords = geometry.center_lat;
-                        } catch (const std::exception& error) {
-                            CECE_LOG_ERROR("Failed to load target geometry from '" + input_file_path + "': " + error.what());
-                            file_nx = 0;
-                            file_ny = 0;
-                        }
-                        amio_close_dataset(coord_dataset);
-                    }
-                    amio_finalize(coord_core);
-                }
-
-                // If nx and ny are not specified in the configuration, inherit them from the loaded geometry.
-                if (nx == 0 && file_nx > 0) nx = file_nx;
-                if (ny == 0 && file_ny > 0) ny = file_ny;
-                if (nx == file_nx && ny == file_ny && file_nx > 0 && file_ny > 0) {
-                    file_lons = file_lon_coords;
-                    file_lats = file_lat_coords;
-                    loaded_from_file = true;
-                }
-            }
-
-            if (is_explicit_gridspec && !loaded_from_file) {
-                cece::LogFatal("[DRIVER FATAL] Failed to load gridspec coordinates from explicitly specified gridspec file '" + input_file_path +
-                               "'");
-                return -1;
-            }
-
-            if (!loaded_from_file) {
-                if (nx <= 0 || ny <= 0) {
-                    CECE_LOG_ERROR(
-                        "Grid dimensions (nx, ny) were not specified in driver.grid configuration and could not be determined from "
-                        "input files!");
-                    return -1;
-                }
-
-                double lon_min = config.get_or("driver.grid.lon_min", -180.0);
-                double lon_max = config.get_or("driver.grid.lon_max", 180.0);
-                double lat_min = config.get_or("driver.grid.lat_min", -90.0);
-                double lat_max = config.get_or("driver.grid.lat_max", 90.0);
-
-                double dlon = (lon_max - lon_min) / nx;
-                double dlat = (lat_max - lat_min) / ny;
-
-                file_lons.resize(nx, 0.0);
-                file_lats.resize(ny == 1 ? nx : ny, 0.0);
-                for (int i = 0; i < nx; ++i) {
-                    file_lons[i] = lon_min + dlon * (i + 0.5);
-                }
-                for (int j = 0; j < ny; ++j) {
-                    file_lats[j] = lat_min + dlat * (j + 0.5);
-                }
-            }
-            has_file_coords = true;
-        }
-
-        if (nx <= 0 || ny <= 0 || nz <= 0) {
-            CECE_LOG_ERROR("Invalid grid dimensions nx=" + std::to_string(nx) + ", ny=" + std::to_string(ny) + ", nz=" + std::to_string(nz));
-            return -1;
-        }
-        // 5. Initialize the cece_driver orchestrator facade
-        void* cece_driver_data = nullptr;
-        int mpi_comm_f = MPI_Comm_c2f(MPI_COMM_WORLD);
-        cece_driver_create(config_file.c_str(), static_cast<int>(config_file.length()), nx, ny, nz, file_lons.data(),
-                           static_cast<int>(file_lons.size()), file_lats.data(), static_cast<int>(file_lats.size()), mpi_comm_f, &cece_driver_data,
-                           &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_driver_create failed with rc=" + std::to_string(rc));
-            return rc;
-        }
-
-        // Standalone Writer: Initialize output writing if configured
-        int writer_comm_f = MPI_Comm_c2f(MPI_COMM_WORLD);
-        if (has_file_coords) {
-            cece_core_writer_initialize_with_coords(cece_data_ptr, nx, ny, nz, file_lons.data(), static_cast<int>(file_lons.size()), file_lats.data(),
-                                                    static_cast<int>(file_lats.size()), start_time_str.c_str(), start_time_str.length(),
-                                                    writer_comm_f, &rc);
-        } else {
-            cece_core_writer_initialize(cece_data_ptr, nx, ny, nz, start_time_str.c_str(), start_time_str.length(), writer_comm_f, &rc);
-        }
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") Writer initialization failed with rc=" + std::to_string(rc));
-            return rc;
-        }
-
-        // Local-time service: decode the UTC-offset grid once and attach it to the
-        // core (no-op when local_time.enabled is false). Coordinates are available
-        // here (file_lons/file_lats), same point as the writer init above.
-        cece_core_local_time_init(cece_data_ptr, nx, ny, nz, file_lons.data(), static_cast<int>(file_lons.size()), file_lats.data(),
-                                  static_cast<int>(file_lats.size()), writer_comm_f, &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") Local-time initialization failed with rc=" + std::to_string(rc));
-            return rc;
-        }
+        // The local-time service is initialized inside the shared facade
+        // (CeceSimulation::create), so it applies identically here and in the
+        // NUOPC cap path.
 
         if (my_rank == 0) {
-            CECE_LOG_INFO("[DRIVER] Initialization completed on " + std::to_string(nx) + "x" + std::to_string(ny) + "x" + std::to_string(nz) +
-                          " grid. Entering run loop...");
+            CECE_LOG_INFO("[DRIVER] Initialization completed on " + std::to_string(grid_spec.nx) + "x" + std::to_string(grid_spec.ny) + "x" +
+                          std::to_string(grid_spec.nz) + " grid. Entering run loop...");
         }
 
-        // 6. Event-driven simulation run loop
-        tick::Time_Point start_time = sim_time;
+        // 6. Event-driven simulation run loop. The shared core ingests at
+        //    step_start_iso, stamps the output at step_end_iso, and reports
+        //    completion through complete_out — the same signal the NUOPC cap
+        //    honors, so both drivers take identical step counts.
         int step_index = 0;
-        while (sim_time < end_time) {
-            tick::Date_Time current_dt = cal.to_date_time(sim_time);
+        while (step_start < end_time) {
+            const tick::Time_Point step_end = step_start + dt;
+            const std::string step_start_iso = tick::format_iso8601(cal.to_date_time(step_start));
+            const std::string step_end_iso = tick::format_iso8601(cal.to_date_time(step_end));
 
             if (my_rank == 0) {
-                CECE_LOG_INFO("[DRIVER] Advancing simulation to: " + tick::format_iso8601(current_dt));
+                CECE_LOG_INFO("[DRIVER] Advancing simulation to: " + step_start_iso);
             }
 
-            std::string time_str = tick::format_iso8601(current_dt);
-
-            // A. Let cece_driver handle all offline AMIO reading and AXIS regridding:
-            cece_driver_advance_time(cece_driver_data, time_str.c_str(), static_cast<int>(time_str.length()), cece_data_ptr, &rc);
-            if (rc < 0) {
-                // Emit on both the log (real stdout, all ranks) and stderr so the
-                // failure is never lost regardless of how output is captured.
-                cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) +
-                               ") cece_driver_advance_time failed to ingest data step - aborting simulation!");
-                throw std::runtime_error("cece_driver_advance_time failed");
-            }
-
-            // B. Execute the CECE Compute Engine
-            int hour = current_dt.hour;
-            int day_of_week = 1;  // Default Monday/Tuesday
-            cece_core_run(cece_data_ptr, hour, day_of_week, &rc);
-            const bool simulation_complete = (rc == 1);
-            if (rc < 0) {
-                cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_run failed with rc=" + std::to_string(rc));
-                throw std::runtime_error("cece_core_run failed");
-            }
-
-            // D. Advance simulation clock by one timestep BEFORE writing, so elapsed time reflects the end of the step!
-            sim_time += dt;
+            // The writer counts steps 1-based (output frequency is checked as
+            // step_index % output_freq), matching the historical counter.
             step_index++;
 
-            double elapsed_seconds = static_cast<double>((sim_time - start_time).nanos()) / 1e9;
-
-            // C. Write output timestep via standalone writer
-            cece_core_write_step(cece_data_ptr, elapsed_seconds, step_index, &rc);
+            int complete = 0;
+            cece_sim_step(sim, step_start_iso.c_str(), static_cast<int>(step_start_iso.length()), step_end_iso.c_str(),
+                          static_cast<int>(step_end_iso.length()), step_index, &complete, &rc);
             if (rc < 0) {
-                cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_write_step failed with rc=" + std::to_string(rc));
-                throw std::runtime_error("cece_core_write_step failed");
+                cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_sim_step failed with rc=" + std::to_string(rc));
+                int cleanup_rc = 0;
+                cece_sim_finalize(sim, &cleanup_rc);
+                Kokkos::finalize();
+                MPI_Finalize();
+                return rc;
             }
-
-            if (simulation_complete) {
+            if (complete) {
                 break;
             }
+            step_start = step_end;
         }
 
-        // 7. Cleanup and release resources
+        // 7. Cleanup and release resources. Teardown failures are warnings:
+        //    output has already been flushed at this point.
         if (my_rank == 0) {
             CECE_LOG_INFO("[DRIVER] Standalone execution completed. Cleaning up...");
         }
-
-        int destroy_rc = 0;
-        cece_driver_destroy(cece_driver_data, &destroy_rc);
-        if (destroy_rc != 0) {
-            CECE_LOG_ERROR("[DRIVER] AMIO teardown reported failures during cece_driver_destroy (rc=" + std::to_string(destroy_rc) +
-                           "); output data was already flushed, but some resources may have leaked.");
-        }
-        cece_core_finalize(cece_data_ptr, &rc);
-        if (rc < 0) {
-            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_core_finalize failed with rc=" + std::to_string(rc));
-            return rc;
+        int finalize_rc = 0;
+        cece_sim_finalize(sim, &finalize_rc);
+        if (finalize_rc < 0) {
+            cece::LogFatal("[DRIVER FATAL] (rank " + std::to_string(my_rank) + ") cece_sim_finalize failed with rc=" + std::to_string(finalize_rc));
+            Kokkos::finalize();
+            MPI_Finalize();
+            return finalize_rc;
         }
     }
     Kokkos::finalize();

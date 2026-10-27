@@ -14,7 +14,6 @@
 #include <dagr/logging.hpp>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -344,10 +343,17 @@ void CeceDriverOrchestrator::ResolveStreamConfigsFromFile(const std::string& con
         return;
     }
 
-    // Walk every stream and populate a StreamConfig for each model variable,
-    // keyed by model name. Unlike the legacy inline parse, streams without
-    // variables map their name to itself and malformed entries throw.
+    // Filter EarthAccess streams before resolving local AMIO mappings.
+    std::vector<YAML::Node> local_streams;
     for (const auto& stream : config["cece_data"]["streams"]) {
+        if (!stream["source"] || stream["source"].as<std::string>() != "earthaccess") {
+            local_streams.push_back(stream);
+        }
+    }
+
+    // Walk each local stream and populate a StreamConfig for every model
+    // variable. Streams without variables map their name to itself.
+    for (const auto& stream : local_streams) {
         if (stream["interpolation"]) {
             throw std::invalid_argument("cece_data stream '" + stream["name"].as<std::string>("") + "': unknown key 'interpolation'; use 'tintalgo'");
         }
@@ -688,6 +694,11 @@ CeceDriverOrchestrator::CeceDriverOrchestrator(const std::string& config_file, i
     destination_geometry_revision_ = coordinate_revision(target_lons_, target_lats_, nx_, ny_) + "|" + file_revision(gridspec_file_) + "|" +
                                      destination_geometry_settings_.longitude_variable + ":" + destination_geometry_settings_.latitude_variable + ":" +
                                      std::to_string(static_cast<int>(destination_geometry_settings_.reconstruction));
+
+    has_earthaccess_streams_ = HasEarthAccessStreams(config_file_);
+    if (has_earthaccess_streams_) {
+        CECE_LOG_INFO("[DRIVER] Earthaccess streams detected; standalone helper ingestion will run before local AMIO ingestion each timestep.");
+    }
 
     cece_io_ = std::make_unique<io::CeceIO>();
     cece_io_->Initialize(config_file_, nx_, ny_, nz_);
@@ -1134,6 +1145,11 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
     // 'stepwise' uses these calendar fields to select the correct file record.
     const SimDateTime sim_dt = parse_sim_datetime(time_iso8601);
 
+    if (!IngestEarthAccessStreams(time_iso8601, cece_core_data_ptr)) {
+        CECE_LOG_ERROR("[DRIVER FATAL] Earthaccess stream ingestion failed for timestep '" + time_iso8601 + "'");
+        return false;
+    }
+
     // B. Push CeceIO's newly computed emission views into CECE's data ingestor
     for (const auto& var_name : cece_io_->GetOutputVarNames()) {
         auto stream_view = cece_io_->GetFieldView(var_name);
@@ -1281,8 +1297,9 @@ bool CeceDriverOrchestrator::AdvanceTime(const std::string& time_iso8601, void* 
                     // historical binary search probed amio_read at ~20 record
                     // indices, each probe a full-record read — exactly the
                     // traffic this band-scoped design exists to avoid — and
-                    // CECE always builds against the pinned AMIO submodule,
-                    // which provides amio_describe. Fail the step instead:
+                    // CECE always builds against the AMIO pinned through HELM's
+                    // submodule pointer, which provides amio_describe. Fail the
+                    // step instead:
                     // file_nt = 0 makes the collective readiness gate below
                     // report a detailed error for this variable.
                     CECE_LOG_WARNING("[DRIVER] amio_describe failed for '" + input_var_name + "' in '" + cfg.input_file_path +
