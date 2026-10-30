@@ -31,10 +31,16 @@ enable MACCity reconstruction from this fixture. Configure authoritative
 geometry only after verifying the input version and checksum, bounds, domain
 and seam, ordering, and independent area evidence.
 
-CECE currently pins HELM/AXIS to
-`1be4a81fb4fb2113684a59149d40024229c06c98`, a commit on the open
-[HELM PR #38](https://github.com/NOAA-EMC/HELM/pull/38). It includes the host
-sample-position interface used for center-only interpolation.
+CECE currently pins HELM/AXIS to the head of the
+[`feature/unstructured_mesh_generation`](https://github.com/NOAA-EMC/HELM/tree/feature/unstructured_mesh_generation)
+branch, the branch under review in [HELM PR #38](https://github.com/NOAA-EMC/HELM/pull/38).
+That branch provides the host sample-position interface used for center-only
+interpolation and the grid geometry metadata (`GeometryMetadata`, corner
+policies, and strip areas) that CECE's reconstruction and conservative regridding
+paths rely on. Once HELM PR #38 merges, the submodule is repinned to HELM
+`develop` and the temporary `.gitmodules` `branch` key and
+`--branch-map` override in `verify_submodules.yml` are removed; this PR must
+not merge before HELM PR #38 does.
 
 CECE is configured using a YAML file, typically named `cece_config.yaml`. This file defines the species to be processed, the source of data, and the active physics schemes.
 
@@ -759,7 +765,7 @@ Configuration for data streams that read external emission inventories and auxil
 | `taxmode` | String | Behavior when the simulation time falls outside the file's coverage: `cycle` (default, clamp to the closest covered year), `extend` (clamp to the nearest end), or `limit` (fail). |
 | `tintalgo` | String | Temporal interpolation: `linear` or `nearest`. Default: `nearest`. Ignored by the `stepwise` cadence. |
 | `time_label` | String | (Optional) Where each time coordinate sits in the interval its record describes: `auto` (default), `start`, `center`, or `end`. Applies to decoded time axes. See [Time Labels](#time-labels-time_label). |
-| `mapalgo` | String | Spatial regridding: `consd` (default), `bilinear`, `bicubic`, `nn`/`nearest`, `consf`, `redist`, or `passthrough`. `consf` and `redist` retain first-order conservative behavior. Sample methods use center coordinates; bilinear and bicubic require structured source stencils. Conservative methods require usable cell boundaries with compatible declared geometry models. `passthrough` requires identical dimensions and ordered source/target coordinates, then copies without AXIS regridding. |
+| `mapalgo` | String | Spatial regridding: `consd` (default), `bilinear`, `bicubic`, `nn`/`nearest`, `consf`, `redist`, or `passthrough`. `consd`, `consf`, and `redist` are all first-order conservative aliases; the host path normalizes every weight by the destination cell area (`consd` semantics), so for a regional source domain with partially filled destination cells the global integral is preserved (`consf` source-area normalization does not preserve it). `redist` is not `passthrough`: `passthrough` is a separate method that requires identical dimensions and ordered source/target coordinates, then copies without AXIS regridding. Sample methods use center coordinates; bilinear and bicubic require structured source stencils. Conservative methods require usable cell boundaries with compatible declared geometry models. |
 | `input_gridspec_file` | String | Optional source geometry file for this stream. `gridspec_file` is accepted as an alias; if both are set, they must match. This is separate from `driver.gridspec_file`, which describes the destination grid. |
 | `longitude_variable`, `latitude_variable` | String | Optional explicit source center coordinate variable names. When absent, CECE detects coordinates from supported conventional names. |
 | `geometry_reconstruction` | String | Optional source boundary policy. Exact values: `none` (default), `rectilinear_midpoint`, `gaussian_latlon` (named `F<N>` target grids use their AXIS mesh directly; arbitrary center-only grids still need Gaussian weights/bounds), or `curvilinear_approximate` (not trusted for conservative remapping). See [policy assumptions](mesh_file_input.md#geometry-reconstruction-policies). |

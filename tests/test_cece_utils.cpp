@@ -1,3 +1,4 @@
+#include <amio/amio.h>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <netcdf.h>
@@ -5,16 +6,20 @@
 
 #include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <vector>
 
 #include "cece/cece_config.hpp"
+#include "cece/cece_grid_geometry.hpp"
 #include "cece/cece_internal.hpp"
 #include "cece/cece_regridder_utils.hpp"
 #include "cece/cece_standalone_writer.hpp"
 #include "cece/cece_utils.hpp"
+
+extern "C" void amio_set_parent_communicator(MPI_Fint comm);
 
 extern "C" {
 void cece_core_write_step(void* data_ptr, double time_seconds, int step_index, int* rc);
@@ -507,6 +512,146 @@ TEST_F(CeceUtilsTest, BuildAxisMeshRejectsProjectedXyAsSupergrid) {
     EXPECT_THROW(cece::io::build_axis_mesh(nx, ny, 0, dummy_lons, dummy_lats, nc_path.string()), std::runtime_error);
 
     std::filesystem::remove(nc_path);
+}
+
+// The grid_spec fixture stores its centers with the FV3 unit spellings
+// ("degrees_E"/"degrees_N"), which the CF geographic check in
+// load_grid_geometry rejects. Production therefore pairs a CF-unit field
+// dataset with the gridspec file; this helper writes that field file by
+// mirroring the spec's own grid_lont/grid_latt centers.
+static std::filesystem::path write_c96_center_field_file(const std::string& spec_file) {
+    constexpr int n = 96;
+    int spec_id = -1;
+    if (nc_open(spec_file.c_str(), NC_NOWRITE, &spec_id) != NC_NOERR) return {};
+    int lon_id = -1, lat_id = -1;
+    bool ok = nc_inq_varid(spec_id, "grid_lont", &lon_id) == NC_NOERR && nc_inq_varid(spec_id, "grid_latt", &lat_id) == NC_NOERR;
+    std::vector<float> lon(static_cast<size_t>(n) * n), lat(static_cast<size_t>(n) * n);
+    if (ok) {
+        ok = nc_get_var_float(spec_id, lon_id, lon.data()) == NC_NOERR && nc_get_var_float(spec_id, lat_id, lat.data()) == NC_NOERR;
+    }
+    nc_close(spec_id);
+    if (!ok) return {};
+
+    const auto path = std::filesystem::temp_directory_path() / "cece_C96_tile1_centers_field.nc";
+    int field_id = -1;
+    ok = nc_create(path.c_str(), NC_CLOBBER | NC_NETCDF4, &field_id) == NC_NOERR;
+    int lat_dim = -1, lon_dim = -1;
+    if (ok) ok = nc_def_dim(field_id, "lat", n, &lat_dim) == NC_NOERR && nc_def_dim(field_id, "lon", n, &lon_dim) == NC_NOERR;
+    int lon_var = -1, lat_var = -1;
+    const int dims[2] = {lat_dim, lon_dim};
+    if (ok)
+        ok = nc_def_var(field_id, "lon", NC_DOUBLE, 2, dims, &lon_var) == NC_NOERR &&
+             nc_def_var(field_id, "lat", NC_DOUBLE, 2, dims, &lat_var) == NC_NOERR;
+    if (ok) {
+        ok = nc_put_att_text(field_id, lon_var, "units", sizeof("degrees_east") - 1, "degrees_east") == NC_NOERR &&
+             nc_put_att_text(field_id, lat_var, "units", sizeof("degrees_north") - 1, "degrees_north") == NC_NOERR && nc_enddef(field_id) == NC_NOERR;
+    }
+    if (ok) {
+        const std::vector<double> lon_values(lon.begin(), lon.end()), lat_values(lat.begin(), lat.end());
+        ok = nc_put_var_double(field_id, lon_var, lon_values.data()) == NC_NOERR &&
+             nc_put_var_double(field_id, lat_var, lat_values.data()) == NC_NOERR;
+    }
+    if (field_id >= 0 && nc_close(field_id) != NC_NOERR) ok = false;
+    if (!ok) {
+        std::filesystem::remove(path);
+        return {};
+    }
+    return path;
+}
+
+// Exercises the production load_grid_geometry -> build_regrid_plan pipeline on
+// the real C96 tile-1 grid_spec fixture.
+class C96GridSpecAmioFixture : public ::testing::Test {
+   protected:
+    amio_core_handle core{nullptr};
+    amio_dataset_handle dataset{nullptr};
+    std::string spec_file;
+    std::filesystem::path field_file;
+
+    void SetUp() override {
+        spec_file = find_grid_file("C96_grid_spec.tile1.nc");
+        if (!std::filesystem::exists(spec_file)) return;
+        field_file = write_c96_center_field_file(spec_file);
+        if (field_file.empty()) return;
+        const auto manifest = std::string("backend: netcdf4\npath: ") + field_file.string() +
+                              "\ndata_model: enhanced\nstaging_pool:\n  buffer_count: 2\n  buffer_capacity_bytes: 1048576\nworker_pool:\n"
+                              "  threads: 1\nprefetch:\n  depth: 1\n  read_timeout_s: 30\nstaging_timeout_ms: 30000\n";
+        amio_set_parent_communicator(MPI_Comm_c2f(MPI_COMM_SELF));
+        if (amio_init_from_string(manifest.c_str(), "yaml", &core) != AMIO_OK) return;
+        if (amio_open_dataset_from_string(core, manifest.c_str(), "yaml", AMIO_MODE_READ, &dataset) != AMIO_OK) {
+            amio_finalize(core);
+            core = nullptr;
+            dataset = nullptr;
+        }
+    }
+
+    void TearDown() override {
+        if (dataset) amio_close_dataset(dataset);
+        if (core) amio_finalize(core);
+        if (!field_file.empty()) std::filesystem::remove(field_file);
+    }
+};
+
+// Branches A-D of load_mesh_from_file must stamp authoritative great-circle
+// metadata and compute cell areas, otherwise validate_regrid_prerequisites
+// rejects every conservative gridspec file with "unknown provenance".
+TEST_F(C96GridSpecAmioFixture, LoadMeshFromC96GridSpecStampsGreatCircleMetadata) {
+    if (!std::filesystem::exists(spec_file)) GTEST_SKIP() << "Missing test file: " << spec_file;
+
+    const auto mesh = cece::io::load_mesh_from_file(96, 96, 0, spec_file);
+    ASSERT_EQ(mesh.n_cells(), static_cast<std::size_t>(96 * 96));
+
+    const auto metadata = mesh.geometry_metadata();
+    EXPECT_EQ(metadata.provenance, axis::topology::GeometryProvenance::SourceAuthoritative);
+    EXPECT_EQ(metadata.boundary_model, axis::topology::BoundaryModel::GreatCircle);
+    EXPECT_EQ(metadata.area_model, axis::topology::AreaModel::SphericalExcess);
+    EXPECT_TRUE(metadata.longitude_periodicity.increasing);
+
+    // compute_areas() fills the previously empty area view with unit-sphere
+    // spherical-excess areas; the six cubed-sphere tiles partition the sphere,
+    // so one tile sums to 4*pi/6.
+    const auto areas = mesh.cell_areas();
+    ASSERT_EQ(areas.size(), mesh.n_cells());
+    double total = 0.0;
+    for (std::size_t cell = 0; cell < mesh.n_cells(); ++cell) {
+        ASSERT_GT(areas(cell), 0.0) << "cell " << cell << " has a non-positive area";
+        total += areas(cell);
+    }
+    EXPECT_NEAR(total, 4.0 * M_PI / 6.0, 1e-6);
+}
+
+// The reviewer-facing end-to-end check: a conservative plan whose source and
+// destination endpoints both resolve to C96_grid_spec.tile1.nc must pass
+// prerequisite validation and produce weights.
+TEST_F(C96GridSpecAmioFixture, BuildRegridPlanConservativeAcceptsC96GridSpec) {
+    if (!dataset) GTEST_SKIP() << "Missing test file or AMIO unavailable: " << spec_file;
+
+    cece::io::GeometrySettings settings;
+    settings.gridspec_file = spec_file;
+    const cece::io::GridGeometry geometry = cece::io::load_grid_geometry(dataset, settings);
+    ASSERT_EQ(geometry.nx, 96);
+    ASSERT_EQ(geometry.ny, 96);
+    ASSERT_TRUE(geometry.has_cell_geometry);
+    ASSERT_TRUE(geometry.supplied_cells);
+
+    cece::io::RegridPlan plan;
+    const bool built = cece::io::build_regrid_plan(dataset, geometry.nx, geometry.ny, geometry.center_lon, geometry.center_lat, "consd", 0,
+                                                   geometry.ny, spec_file, spec_file, plan);
+    ASSERT_TRUE(built) << "conservative plan from C96 grid_spec was rejected";
+    EXPECT_TRUE(plan.built);
+    EXPECT_FALSE(plan.identity);
+    EXPECT_EQ(plan.file_nx, 96);
+    EXPECT_EQ(plan.file_ny, 96);
+    EXPECT_EQ(plan.j0, 0);
+    EXPECT_EQ(plan.j1, 96);
+    EXPECT_GT(plan.matrix.nnz(), 0u);
+    EXPECT_EQ(plan.matrix.n_src(), static_cast<std::size_t>(96 * 96));
+    EXPECT_EQ(plan.matrix.n_dst(), static_cast<std::size_t>(96 * 96));
+
+    // Identical source/destination grids: every destination row references
+    // its own source row, so the band-scoped read window covers the full grid.
+    EXPECT_EQ(plan.src_j0, 0);
+    EXPECT_EQ(plan.src_rows, 96);
 }
 
 }  // namespace cece::test

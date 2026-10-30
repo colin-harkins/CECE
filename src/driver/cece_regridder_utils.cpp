@@ -196,17 +196,15 @@ static std::vector<double> read_rectilinear_bounds(amio_dataset_handle dataset, 
     return bounds;
 }
 
-static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh(amio_dataset_handle dataset, int nx, int nband, int j0) {
-    amio_shape_t lon_shape{}, lat_shape{};
-    int64_t timesteps = 0;
-    if (nx <= 0 || nband < 0 || j0 < 0 || amio_describe(dataset, "lon", &lon_shape, &timesteps) != AMIO_OK ||
-        amio_describe(dataset, "lat", &lat_shape, &timesteps) != AMIO_OK || lon_shape.rank != 1 || lat_shape.rank != 1 ||
-        lon_shape.extents[0] != nx || nx > std::numeric_limits<int>::max() / 2 || lat_shape.extents[0] <= 0 ||
-        lat_shape.extents[0] > std::numeric_limits<int>::max() / 2 || static_cast<int64_t>(j0) + nband > lat_shape.extents[0]) {
-        throw std::runtime_error("CF rectilinear gridspec dimensions do not match the requested band");
-    }
-    const auto lon_bounds = read_rectilinear_bounds(dataset, "lon", nx, false);
-    const auto lat_bounds = read_rectilinear_bounds(dataset, "lat", static_cast<int>(lat_shape.extents[0]), true);
+// Build a constant-latitude-strip mesh from CF 1-D axis bounds. Cell (i, j)
+// takes its four corners from the [i] and [j0 + j] bound pairs, so rows with
+// gapped bounds (e.g. a polar-cap edge at -88° beneath a row starting at -84°)
+// stay exact instead of sharing a lattice node grid. AXIS `make_unstructured`
+// validates the CSR buffers, and the declared metadata lets conservative
+// prerequisite checks accept the strips without inferring geometry.
+static axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_rectilinear_strip_mesh(int nx, int nband, int j0,
+                                                                                        const std::vector<double>& lon_bounds,
+                                                                                        const std::vector<double>& lat_bounds) {
     const size_t cells = static_cast<size_t>(nx) * nband;
     if (cells > static_cast<size_t>(std::numeric_limits<axis::index_t>::max()) / 4) throw std::runtime_error("CF rectilinear mesh too large");
     Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace> nodes("cf_rectilinear_nodes", cells * 4, 2);
@@ -222,7 +220,7 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh
             const double west = lon_bounds[longitude_offset], east = lon_bounds[longitude_offset + 1];
             const double south = std::min(lat_bounds[latitude_offset], lat_bounds[latitude_offset + 1]);
             const double north = std::max(lat_bounds[latitude_offset], lat_bounds[latitude_offset + 1]);
-            if (std::abs(east - west) > 360.0 || south < -90.0 || south > 90.0 || north < -90.0 || north > 90.0)
+            if (!(west < east) || std::abs(east - west) > 360.0 || south < -90.0 || south > 90.0 || north < -90.0 || north > 90.0)
                 throw std::runtime_error("CF rectilinear cell bounds are outside the supported spherical domain");
             nodes(first, 0) = west;
             nodes(first, 1) = south;
@@ -244,6 +242,37 @@ static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh
                                               {false, 360.0, true}};
     return axis::topology::make_unstructured(nodes, offsets, indices, axis::topology::CoordinateSystem::SphericalDeg, areas,
                                              Kokkos::View<int*, Kokkos::HostSpace>{}, metadata);
+}
+
+// Build a great-circle polygon mesh from per-cell explicit corners and give it
+// authoritative spherical-excess cell areas. SCRIP, MPAS, FV3 grid_spec,
+// FV3 supergrid, and CF curvilinear files all supply the corner coordinates,
+// so AXIS computes the areas rather than each loader hand-rolling them.
+static axis::topology::UnstructuredMesh<Kokkos::HostSpace> seal_great_circle_mesh(Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace> nodes,
+                                                                                  Kokkos::View<axis::index_t*, Kokkos::HostSpace> offsets,
+                                                                                  Kokkos::View<axis::index_t*, Kokkos::HostSpace> indices) {
+    auto mesh =
+        axis::topology::make_unstructured(std::move(nodes), std::move(offsets), std::move(indices), axis::topology::CoordinateSystem::SphericalDeg);
+    mesh.compute_areas();
+    mesh.set_geometry_metadata({axis::topology::GeometryProvenance::SourceAuthoritative,
+                                axis::topology::BoundaryModel::GreatCircle,
+                                axis::topology::AreaModel::SphericalExcess,
+                                {false, 360.0, true}});
+    return mesh;
+}
+
+static axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_rectilinear_mesh(amio_dataset_handle dataset, int nx, int nband, int j0) {
+    amio_shape_t lon_shape{}, lat_shape{};
+    int64_t timesteps = 0;
+    if (nx <= 0 || nband < 0 || j0 < 0 || amio_describe(dataset, "lon", &lon_shape, &timesteps) != AMIO_OK ||
+        amio_describe(dataset, "lat", &lat_shape, &timesteps) != AMIO_OK || lon_shape.rank != 1 || lat_shape.rank != 1 ||
+        lon_shape.extents[0] != nx || nx > std::numeric_limits<int>::max() / 2 || lat_shape.extents[0] <= 0 ||
+        lat_shape.extents[0] > std::numeric_limits<int>::max() / 2 || static_cast<int64_t>(j0) + nband > lat_shape.extents[0]) {
+        throw std::runtime_error("CF rectilinear gridspec dimensions do not match the requested band");
+    }
+    const auto lon_bounds = read_rectilinear_bounds(dataset, "lon", nx, false);
+    const auto lat_bounds = read_rectilinear_bounds(dataset, "lat", static_cast<int>(lat_shape.extents[0]), true);
+    return build_rectilinear_strip_mesh(nx, nband, j0, lon_bounds, lat_bounds);
 }
 
 axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, int nband, int j0, const std::string& gridspec_file) {
@@ -338,7 +367,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             }
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
-            auto mesh = axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
+            auto mesh = seal_great_circle_mesh(node_coords, conn_offsets, conn_indices);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -445,7 +474,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             }
             conn_offsets(n_cells) = static_cast<axis::index_t>(offset);
 
-            auto mesh = axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
+            auto mesh = seal_great_circle_mesh(node_coords, conn_offsets, conn_indices);
             amio_close(dataset);
             dataset = nullptr;
             amio_finalize(core);
@@ -519,7 +548,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
             close_amio();
-            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
+            return seal_great_circle_mesh(node_coords, conn_offsets, conn_indices);
         } catch (const std::exception& e) {
             close_amio();
             throw;
@@ -590,7 +619,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             conn_offsets(n_cells) = static_cast<axis::index_t>(n_vertices);
 
             close_amio();
-            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
+            return seal_great_circle_mesh(node_coords, conn_offsets, conn_indices);
         } catch (const std::exception& e) {
             close_amio();
             throw;
@@ -653,89 +682,93 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
             std::string lon_bounds_name = get_bounds_name(cf_lon_name, "lon_bnds");
             std::string lat_bounds_name = get_bounds_name(cf_lat_name, "lat_bnds");
 
-            // 4. Read the boundary arrays using the names we just resolved
+            // 4. Classify the bounds arrays by their NetCDF shapes instead of
+            //    flattened element counts: rank-2 arrays whose minor dimension
+            //    is 2 are 1-D rectilinear axis bounds (nv, nx)/(nv, ny), while
+            //    rank-3 (ny, nx, 4) arrays are explicit per-cell corners. The
+            //    old count heuristic misread square 1-D grids (nx == ny even)
+            //    as 2-D corner lists.
+            amio_shape_t lon_bnd_shape{}, lat_bnd_shape{};
+            int64_t bnd_ts = 0;
+            const bool has_lon_bnd_shape = amio_describe(dataset, lon_bounds_name.c_str(), &lon_bnd_shape, &bnd_ts) == AMIO_OK;
+            const bool has_lat_bnd_shape = amio_describe(dataset, lat_bounds_name.c_str(), &lat_bnd_shape, &bnd_ts) == AMIO_OK;
+            auto axis_is_1d_bounds = [](const amio_shape_t& shape) {
+                // CF axis bounds are (axis, nv) or (nv, axis) with nv == 2.
+                // Per-cell corner lists carry a dimension of 4 instead.
+                return shape.rank == 2 && (shape.extents[0] == 2 || shape.extents[1] == 2) && shape.extents[0] != 4 && shape.extents[1] != 4;
+            };
+            // Return the bounds as interleaved [count][2] pairs. A (count, nv)
+            // array already flattens that way; a (nv, count) array stores the
+            // low and high edges as two contiguous blocks and must be reordered.
+            auto axis_bound_pairs = [](const std::vector<double>& values, const amio_shape_t& shape, size_t& count) {
+                count = 0;
+                if (shape.rank != 2) return std::vector<double>(values);
+                const size_t major = static_cast<size_t>(shape.extents[0]);
+                const size_t minor = static_cast<size_t>(shape.extents[1]);
+                if (values.size() != major * minor) return std::vector<double>(values);
+                if (minor == 2) {
+                    count = major;
+                    return std::vector<double>(values);
+                }
+                if (major == 2) {
+                    count = minor;
+                    std::vector<double> pairs(values.size());
+                    for (size_t k = 0; k < minor; ++k) {
+                        pairs[2 * k] = values[k];
+                        pairs[2 * k + 1] = values[minor + k];
+                    }
+                    return pairs;
+                }
+                return std::vector<double>(values);
+            };
+            const bool is_1d_rectilinear =
+                has_lon_bnd_shape && has_lat_bnd_shape && axis_is_1d_bounds(lon_bnd_shape) && axis_is_1d_bounds(lat_bnd_shape);
+
+            // 5. Read the boundary arrays using the names we just resolved.
+            //    Wrapping +180° longitudes is only safe for per-cell corner
+            //    lists; 1-D axis bounds must stay monotone so an eastern cell
+            //    [175, 180] is not inverted across the seam.
             int total_lon_bnd_pts = 0;
             int total_lat_bnd_pts = 0;
-            std::vector<double> cf_lon_bnds = read_coordinate_array(dataset, lon_bounds_name, false, true, total_lon_bnd_pts);
+            std::vector<double> cf_lon_bnds = read_coordinate_array(dataset, lon_bounds_name, false, !is_1d_rectilinear, total_lon_bnd_pts);
             std::vector<double> cf_lat_bnds = read_coordinate_array(dataset, lat_bounds_name, false, false, total_lat_bnd_pts);
 
             close_amio();
 
-            // 5. Determine if bounds are 1D rectilinear (2 pts) or 2D explicitly defined (4 pts)
-            int grid_corners = 4;
-            size_t n_cells = 0;
-            size_t n_vertices = 0;
-            bool is_1d_rectilinear = false;
-
-            // If lengths match and are divisible by 4, assume 2D explicit corners
-            if (total_lon_bnd_pts == total_lat_bnd_pts && total_lon_bnd_pts % 4 == 0) {
-                n_cells = total_lon_bnd_pts / 4;
-                n_vertices = total_lon_bnd_pts;
-            }
-            // If they are divisible by 2, they are 1D bounds (e.g., size nx*2 and ny*2)
-            else if (total_lon_bnd_pts % 2 == 0 && total_lat_bnd_pts % 2 == 0) {
-                is_1d_rectilinear = true;
-                size_t nx = total_lon_bnd_pts / 2;
-                size_t ny = total_lat_bnd_pts / 2;
-                n_cells = nx * ny;
-                n_vertices = n_cells * 4;
-            } else {
-                throw std::runtime_error("Unsupported CF bounds array dimensions.");
-            }
-
-            Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace> node_coords("node_coords", n_vertices, 2);
-            Kokkos::View<axis::index_t*, Kokkos::HostSpace> conn_offsets("conn_offsets", n_cells + 1);
-            Kokkos::View<axis::index_t*, Kokkos::HostSpace> conn_indices("conn_indices", n_vertices);
-
-            // 6. Populate the mesh based on the detected layout
+            // 6. Build the requested (j0, nband) row slice, not the whole file.
             if (is_1d_rectilinear) {
-                size_t nx = total_lon_bnd_pts / 2;
-                size_t ny = total_lat_bnd_pts / 2;
-
-                for (size_t j = 0; j < ny; ++j) {
-                    for (size_t i = 0; i < nx; ++i) {
-                        size_t cell_idx = j * nx + i;
-                        conn_offsets(cell_idx) = cell_idx * grid_corners;
-
-                        double lon_min = cf_lon_bnds[i * 2];
-                        double lon_max = cf_lon_bnds[i * 2 + 1];
-                        double lat_min = cf_lat_bnds[j * 2];
-                        double lat_max = cf_lat_bnds[j * 2 + 1];
-
-                        size_t base_v = cell_idx * 4;
-
-                        // Construct 4 corners counterclockwise
-                        node_coords(base_v + 0, 0) = lon_min;
-                        node_coords(base_v + 0, 1) = lat_min;
-                        node_coords(base_v + 1, 0) = lon_max;
-                        node_coords(base_v + 1, 1) = lat_min;
-                        node_coords(base_v + 2, 0) = lon_max;
-                        node_coords(base_v + 2, 1) = lat_max;
-                        node_coords(base_v + 3, 0) = lon_min;
-                        node_coords(base_v + 3, 1) = lat_max;
-
-                        for (int v = 0; v < 4; ++v) {
-                            conn_indices(base_v + v) = base_v + v;
-                        }
-                    }
+                size_t file_nx = 0, file_ny = 0;
+                const auto lon_pairs = axis_bound_pairs(cf_lon_bnds, lon_bnd_shape, file_nx);
+                const auto lat_pairs = axis_bound_pairs(cf_lat_bnds, lat_bnd_shape, file_ny);
+                if (file_nx != static_cast<size_t>(nx) || static_cast<size_t>(j0) + static_cast<size_t>(nband) > file_ny) {
+                    throw std::runtime_error("CF 1D bounds dimensions do not match requested (nx, j0, nband) slice: " + gridspec_file);
                 }
-            } else {
-                // Existing explicitly defined 4-corner logic
-                for (size_t i = 0; i < n_cells; ++i) {
-                    conn_offsets(i) = i * grid_corners;
-                    for (int v = 0; v < grid_corners; ++v) {
-                        size_t v_idx = i * grid_corners + v;
-                        node_coords(v_idx, 0) = cf_lon_bnds[v_idx];
-                        node_coords(v_idx, 1) = cf_lat_bnds[v_idx];
-                        conn_indices(v_idx) = v_idx;
-                    }
+                return build_rectilinear_strip_mesh(nx, nband, j0, lon_pairs, lat_pairs);
+            }
+            if (total_lon_bnd_pts != total_lat_bnd_pts || total_lon_bnd_pts % 4 != 0) {
+                throw std::runtime_error("Unsupported CF bounds array dimensions in '" + gridspec_file + "'.");
+            }
+            const size_t expected_cells = static_cast<size_t>(nx) * static_cast<size_t>(nband);
+            const size_t total_cells_in_file = static_cast<size_t>(total_lon_bnd_pts) / 4;
+            const size_t cell_offset = static_cast<size_t>(j0) * static_cast<size_t>(nx);
+            if (cell_offset + expected_cells > total_cells_in_file) {
+                throw std::runtime_error("CF 2D bounds array is smaller than requested (nx, j0, nband) slice: " + gridspec_file);
+            }
+            Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace> node_coords("node_coords", expected_cells * 4, 2);
+            Kokkos::View<axis::index_t*, Kokkos::HostSpace> conn_offsets("conn_offsets", expected_cells + 1);
+            Kokkos::View<axis::index_t*, Kokkos::HostSpace> conn_indices("conn_indices", expected_cells * 4);
+            for (size_t cell = 0; cell < expected_cells; ++cell) {
+                conn_offsets(cell) = static_cast<axis::index_t>(cell * 4);
+                for (int v = 0; v < 4; ++v) {
+                    const size_t src_v_idx = (cell_offset + cell) * 4 + static_cast<size_t>(v);
+                    const size_t dst_v_idx = cell * 4 + static_cast<size_t>(v);
+                    node_coords(dst_v_idx, 0) = cf_lon_bnds[src_v_idx];
+                    node_coords(dst_v_idx, 1) = cf_lat_bnds[src_v_idx];
+                    conn_indices(dst_v_idx) = static_cast<axis::index_t>(dst_v_idx);
                 }
             }
-            conn_offsets(n_cells) = n_vertices;
-
-            close_amio();
-
-            return axis::topology::make_unstructured(node_coords, conn_offsets, conn_indices, axis::topology::CoordinateSystem::SphericalDeg);
+            conn_offsets(expected_cells) = static_cast<axis::index_t>(expected_cells * 4);
+            return seal_great_circle_mesh(node_coords, conn_offsets, conn_indices);
 
         } catch (const std::exception& e) {
             // Resource cleanup is important if an exception gets thrown inside the try-block
@@ -747,8 +780,7 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> load_mesh_from_file(int nx, 
     close_amio();
     throw std::runtime_error("Unsupported gridspec mesh topology convention in '" + gridspec_file +
                              "' (expected SCRIP [grid_corner_lon], MPAS [latVertex], UFS/FV3 grid_spec [grid_lon/grid_lat], UFS/FV3 supergrid [x/y], "
-                             "or CF rectilinear [lon/lat with explicit bounds])"
-                             "or CF curvelinear [lon/lat with explicit bounds])");
+                             "CF rectilinear [1-D lon/lat with bounds], or CF curvilinear [explicit corner bounds])");
 }
 
 axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_axis_mesh(int nx, int nband, int j0, const std::vector<double>& lons,

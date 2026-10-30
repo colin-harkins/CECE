@@ -453,16 +453,17 @@ std::string CeceDriverOrchestrator::StreamKey(const StreamConfig& cfg) {
 }
 
 std::string CeceDriverOrchestrator::GeometryPlanKey(const StreamConfig& cfg) const {
-    std::string canonical_method = cfg.mapalgo;
-    std::transform(canonical_method.begin(), canonical_method.end(), canonical_method.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    if (canonical_method == "nn" || canonical_method == "nearestneighbor" || canonical_method == "nearest-neighbor")
-        canonical_method = "nearest";
-    else if (canonical_method == "consd" || canonical_method == "conservative" || canonical_method == "cons" || canonical_method == "consf" ||
-             canonical_method == "redist" || canonical_method == "conservative1st")
-        canonical_method = "conservative1st";
-    else if (canonical_method == "conss" || canonical_method == "cons2nd" || canonical_method == "conservative2nd")
-        canonical_method = "conservative2";
+    // Single source of truth for method aliases: AXIS-facing resolution in
+    // io::resolve_regrid_method. cfg.mapalgo is already lower-cased at parse
+    // time, so no local normalisation or alias table is needed here. Unknown
+    // names keep their literal spelling so the staged prerequisite error is
+    // still raised by build_regrid_plan (Req 11.5).
+    std::string canonical_method;
+    try {
+        canonical_method = io::resolve_regrid_method(cfg.mapalgo).canonical_name;
+    } catch (const std::exception&) {
+        canonical_method = cfg.mapalgo;
+    }
 
     const std::string source_file_signature = file_revision(cfg.input_file_path);
     const std::string geometry_cache_key = HandleKey(cfg) + "|" + cfg.input_gridspec_file + "|" + cfg.source_geometry.longitude_variable + "|" +

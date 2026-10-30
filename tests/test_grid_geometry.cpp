@@ -199,6 +199,7 @@ TEST(GridGeometryPreparation, ExplicitMidpointDeclarationPreservesCentersAndProv
     EXPECT_EQ(prepared.cells->n_cells(), 4u);
     EXPECT_EQ(prepared.metadata.provenance, axis::topology::GeometryProvenance::DeclaredGridModel);
     EXPECT_EQ(prepared.geometry->center_lon, (std::vector<double>{0.0, 4.0}));
+    EXPECT_FALSE(geometry->has_cell_geometry);
 }
 
 TEST(GridGeometryPreparation, ExplicitCornerLatticePreservesSourceProvenance) {
